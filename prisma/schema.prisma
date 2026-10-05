@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Scope {
+  face
+  hair
+  body
+}
+
+enum ProductStatus {
+  active
+  paused
+  empty
+  wish
+}
+
+model Product {
+  id        String        @id @default(cuid())
+  scope     Scope
+  group     String
+  name      String
+  note      String        @default("")
+  status    ProductStatus @default(active)
+  order     Int           @default(0)
+  createdAt DateTime      @default(now())
+  steps     Step[]
+  checks    Check[]
+
+  @@index([scope, status])
+}
+
+/// Một ngày trong lịch, theo scope và tuần A/B của chu kỳ 2 tuần
+model RoutineDay {
+  id       String    @id @default(cuid())
+  scope    Scope
+  week     String // "A" | "B"
+  dayIndex Int // 0 = Thứ Hai ... 6 = Chủ Nhật
+  short    String
+  full     String
+  focus    String    @default("")
+  sections Section[]
+
+  @@unique([scope, week, dayIndex])
+}
+
+/// Buổi trong ngày: am | pm | day
+model Section {
+  id    String     @id @default(cuid())
+  day   RoutineDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  dayId String
+  key   String
+  order Int        @default(0)
+  steps Step[]
+
+  @@unique([dayId, key])
+}
+
+model Step {
+  id        String  @id @default(cuid())
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  sectionId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  note      String  @default("")
+  order     Int     @default(0)
+
+  @@index([sectionId, order])
+}
+
+/// Tick hoàn thành từng bước theo ngày thực tế
+model Check {
+  id         String   @id @default(cuid())
+  date       String // YYYY-MM-DD theo giờ địa phương
+  scope      Scope
+  sectionKey String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId  String
+  createdAt  DateTime @default(now())
+
+  @@unique([date, scope, sectionKey, productId])
+  @@index([date])
+}
+
+/// Nhật ký da — 1 bản ghi mỗi ngày
+model JournalEntry {
+  date      String   @id // YYYY-MM-DD
+  acne      Int      @default(1)
+  dark      Int      @default(1)
+  dry       Int      @default(1)
+  sting     Int      @default(1)
+  note      String   @default("")
+  updatedAt DateTime @updatedAt
+}
+
+model Setting {
+  key   String @id
+  value String
+}
+
+model PushSubscription {
+  endpoint  String   @id
+  p256dh    String
+  auth      String
+  label     String   @default("")
+  createdAt DateTime @default(now())
+  lastSent  String   @default("")
+}
