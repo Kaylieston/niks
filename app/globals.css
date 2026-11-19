@@ -7,12 +7,12 @@
   --sky: #A9B7C6;        /* Misty Sky */
   --ink: #2D3A47;        /* Midnight Lagoon */
   --card: #FFFCF5;
-  --cream-2: #F8EBD2;
+  --cream-2: #FBF0DA;
   --blush-2: #FCE6EB;
   --sage-2: #E9EDDC;
   --sky-2: #E5EAF0;
   --muted: #6B7480;
-  --line: #EADFC8;
+  --line: #EFE5D0;
   --display: "Quicksand", "Nunito", ui-rounded, system-ui, sans-serif;
   --body: "Nunito", ui-rounded, system-ui, -apple-system, sans-serif;
   --spring: cubic-bezier(.3, 1.6, .5, 1);
@@ -64,7 +64,7 @@ h1, h2, h3 { margin: 0; }
 .row-btns.tight { gap: 6px; flex-wrap: nowrap; }
 .foot { text-align: center; color: var(--muted); font-size: 12px; font-weight: 700; margin: 4px 0 0; }
 
-.pill { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 999px; padding: 11px 18px; font-weight: 800; font-size: 14px; background: var(--ink); color: var(--cream); transition: transform .25s var(--spring), background .2s; }
+.pill { white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 999px; padding: 11px 18px; font-weight: 800; font-size: 14px; background: var(--ink); color: var(--cream); transition: transform .25s var(--spring), background .2s; }
 .pill:active { transform: scale(.96); }
 .pill.soft { background: var(--cream-2); color: var(--ink); }
 .pill.sm { padding: 7px 12px; font-size: 12.5px; }
@@ -119,7 +119,7 @@ h1, h2, h3 { margin: 0; }
 
 .group-head { display: flex; align-items: center; gap: 10px; }
 .group-head .count { font-family: var(--display); font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
-.group.pm { background: #FBF3F1; }
+.group.pm { background: #FFFAF6; }
 .bar { height: 6px; background: var(--cream-2); border-radius: 3px; overflow: hidden; margin: 12px 0 6px; }
 .bar i { display: block; height: 100%; background: var(--sage); border-radius: 3px; transition: width .6s var(--ease); }
 .checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -183,6 +183,25 @@ h1, h2, h3 { margin: 0; }
 .ts.active { transform: scale(1.02); box-shadow: 0 10px 24px -14px rgba(45, 58, 71, .5); }
 .ts.active .num { background: var(--rose); }
 .ts.done .nm { color: var(--muted); }
+
+/* sơ đồ cả ngày */
+.flow { display: flex; flex-direction: column; gap: 12px; }
+.flowsvg { width: 100%; height: auto; display: block; overflow: visible; }
+.ftext { font-family: var(--body); font-weight: 800; fill: var(--ink); }
+.pill-t { fill: var(--cream); font-size: 13px; }
+.num-t { fill: var(--cream); font-size: 10.5px; }
+.name-t { font-size: 11.5px; }
+.meta-t { font-size: 10px; fill: var(--muted); font-weight: 700; }
+.flink-bg { fill: none; stroke: var(--line); stroke-width: 2.5; stroke-dasharray: 3 6; stroke-linecap: round; }
+.flink { fill: none; stroke: #A9B7C6; stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: flinkDraw .5s ease-out forwards; }
+@keyframes flinkDraw { to { stroke-dashoffset: 0; } }
+.fnode { opacity: 0; transform-box: fill-box; transform-origin: center; animation: fnodeIn .5s var(--spring) forwards; }
+@keyframes fnodeIn { from { opacity: 0; transform: scale(.6) translateY(8px); } to { opacity: 1; transform: none; } }
+.fnode.step { cursor: pointer; }
+.fnode.step:focus-visible rect:first-child { stroke: var(--rose); stroke-width: 3; }
+.fnode.step:hover .fart { transform: translateY(-2px); }
+.fart { transition: transform .3s var(--spring); }
+.fdot { fill: var(--rose); stroke: var(--cream); stroke-width: 2.5; }
 
 /* chỉnh lịch */
 .edit-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
