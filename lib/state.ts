@@ -4,16 +4,17 @@ import type { Scope } from "./defaults";
 
 export type AppState = {
   settings: { cycleStart: string; reminderTime: string; reminderEnabled: boolean };
-  products: { id: string; scope: Scope; group: string; name: string; note: string; status: string }[];
+  products: { id: string; scope: Scope; group: string; name: string; note: string; status: string; openedAt: string; paoMonths: number }[];
   routines: Record<Scope, Record<"A" | "B", any[]>>;
   journal: Record<string, { acne: number; dark: number; dry: number; sting: number; note: string }>;
   checks: Record<string, Record<string, boolean>>;
+  moods: Record<string, { mood: string; skin: string[]; note: string }>;
 };
 
 const DEFAULT_SETTINGS = { cycleStart: thisMonday(), reminderTime: "21:00", reminderEnabled: false };
 
 export async function loadState(): Promise<AppState> {
-  const [settingRows, products, days, journal, checks] = await Promise.all([
+  const [settingRows, products, days, journal, checks, moods] = await Promise.all([
     prisma.setting.findMany(),
     prisma.product.findMany({ orderBy: [{ scope: "asc" }, { order: "asc" }] }),
     prisma.routineDay.findMany({
@@ -22,6 +23,7 @@ export async function loadState(): Promise<AppState> {
     }),
     prisma.journalEntry.findMany({ orderBy: { date: "asc" } }),
     prisma.check.findMany(),
+    prisma.moodEntry.findMany({ orderBy: { date: "asc" } }),
   ]);
 
   const settings: any = { ...DEFAULT_SETTINGS };
@@ -49,12 +51,19 @@ export async function loadState(): Promise<AppState> {
     (checkMap[c.date] ||= {})[`${c.scope}:${c.sectionKey}:${c.productId}`] = true;
   }
 
+  const moodMap: AppState["moods"] = {};
+  for (const m of moods) moodMap[m.date] = { mood: m.mood, skin: m.skin ? m.skin.split(",") : [], note: m.note };
+
   return {
     settings,
-    products: products.map((p) => ({ id: p.id, scope: p.scope as Scope, group: p.group, name: p.name, note: p.note, status: p.status })),
+    products: products.map((p) => ({
+      id: p.id, scope: p.scope as Scope, group: p.group, name: p.name, note: p.note, status: p.status,
+      openedAt: p.openedAt, paoMonths: p.paoMonths,
+    })),
     routines,
     journal: journalMap,
     checks: checkMap,
+    moods: moodMap,
   };
 }
 

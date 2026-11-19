@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
     data: {
       scope: body.scope, group: body.group, name: body.name,
       note: body.note ?? "", status: body.status ?? "active", order: count,
+      openedAt: body.openedAt ?? "", paoMonths: +body.paoMonths || 0,
     },
   });
   return NextResponse.json(product, { status: 201 });
