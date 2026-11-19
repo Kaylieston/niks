@@ -91,7 +91,7 @@ model Check {
   @@index([date])
 }
 
-/// Nhật ký da — 1 bản ghi mỗi ngày
+/// Nhật ký da kiểu cũ (thang 1–5) — không còn dùng trên giao diện, giữ lại để không mất dữ liệu
 model JournalEntry {
   date      String   @id // YYYY-MM-DD
   acne      Int      @default(1)
@@ -111,11 +111,20 @@ model MoodEntry {
   updatedAt DateTime @updatedAt
 }
 
+/// Tình trạng da trong ngày — 1 bản ghi mỗi ngày, ghi ở tab Lịch trình
+model SkinLog {
+  date      String   @id // YYYY-MM-DD
+  tags      String   @default("") // khoá tình trạng da, cách nhau bằng dấu phẩy, xem lib/skin.ts
+  note      String   @default("")
+  updatedAt DateTime @updatedAt
+}
+
 model Setting {
   key   String @id
   value String
 }
 
+/// Đăng ký nhắc nhở cũ — tính năng nhắc nhở đã bỏ, giữ bảng để không mất dữ liệu
 model PushSubscription {
   endpoint  String   @id
   p256dh    String

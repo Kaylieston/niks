@@ -7,11 +7,11 @@ export type Product = {
 export type Step = { p: string; n: string };
 export type Day = { short: string; full: string; focus: string; sections: { key: string; steps: Step[] }[] };
 export type State = {
-  settings: { cycleStart: string; reminderTime: string; reminderEnabled: boolean };
+  settings: { cycleStart: string };
   products: Product[];
   routines: Record<Scope, Record<"A" | "B", Day[]>>;
-  journal: Record<string, { acne: number; dark: number; dry: number; sting: number; note: string }>;
   checks: Record<string, Record<string, boolean>>;
-  moods: Record<string, { mood: string; skin: string[]; note: string }>;
+  moods: Record<string, { mood: string; note: string }>;
+  skin: Record<string, { tags: string[]; note: string }>;
 };
 export type Mutate = (label: string, fn: () => Promise<any>) => Promise<boolean>;

@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { DAY_NAMES, GROUP_ICON, SCOPE_LABEL, SECTION_META, STATUS, WEEK_LABEL, type Scope } from "@/lib/defaults";
+import { GROUPS, GROUP_ICON, SECTION_META, type Scope } from "@/lib/defaults";
+import { useI18n } from "@/lib/i18n";
 import { dateKey, dayIndex, parseKey, weekOf } from "@/lib/dates";
 import type { Mutate, Product, State, Step } from "@/lib/types";
 import { G, ProductArt, productLook } from "./art";
-import { api } from "./ui";
+import { Sheet, api } from "./ui";
+import { SkinCheck } from "./Skin";
 import type { RoutineTarget } from "./NiksApp";
 
 const SCOPES: Scope[] = ["face", "hair", "body"];
@@ -16,6 +18,7 @@ const PLAY_MS = 2800;
 export default function RoutineView({ state, setState, mutate, target, toast }: {
   state: State; setState: (s: State) => void; mutate: Mutate; target: RoutineTarget | null; toast: (m: string) => void;
 }) {
+  const { tr, L } = useI18n();
   const today = new Date();
   const [scope, setScope] = useState<Scope>(target?.scope ?? "face");
   const [date, setDate] = useState(dateKey(today));
@@ -70,7 +73,7 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
   useEffect(() => {
     if (!playing) return;
     const t = setTimeout(() => {
-      if (cur >= steps.length - 1) { setPlaying(false); toast("Xong cả routine rồi!"); return; }
+      if (cur >= steps.length - 1) { setPlaying(false); toast(tr("Xong cả routine rồi!", "Routine complete!")); return; }
       show(cur + 1);
     }, PLAY_MS);
     return () => clearTimeout(t);
@@ -96,9 +99,10 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
 
   if (editing) {
     return <ScheduleEditor scope={scope} setScope={setScope} initialWeek={wk} initialDay={di}
-      state={state} mutate={mutate} onDone={() => setEditing(false)} />;
+      state={state} mutate={mutate} toast={toast} onDone={() => setEditing(false)} />;
   }
 
+  const secTitle = L.section[scope][secKey]?.[0] ?? "";
   const layers = steps.slice(0, cur + 1)
     .map((s, i) => ({ i, p: byId[s.p] }))
     .filter(({ p }) => p && !RINSE.has(GROUP_ICON[p.group] ?? ""));
@@ -109,40 +113,40 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
     <section className="view">
       <div className="top">
         <div className="grow">
-          <div className="sub">{DAY_NAMES[di]} · {WEEK_LABEL[wk]}{day?.focus ? ` · ${day.focus}` : ""}</div>
-          <h1>Lịch trình</h1>
+          <div className="sub">{L.days[di]} · {L.week[wk]}{day?.focus ? ` · ${day.focus}` : ""}</div>
+          <h1>{tr("Lịch trình", "Routine")}</h1>
         </div>
-        <button className="iconbtn" aria-label="Chỉnh lịch" onClick={() => setEditing(true)}><G name="edit" size={20} /></button>
+        <button className="iconbtn" aria-label={tr("Chỉnh lịch", "Edit routine")} onClick={() => setEditing(true)}><G name="edit" size={20} /></button>
       </div>
 
-      <div className="chips" role="group" aria-label="Mục">
+      <div className="chips" role="group" aria-label={tr("Mục", "Area")}>
         {SCOPES.map((s) => (
-          <button key={s} aria-pressed={scope === s} onClick={() => setScope(s)}>{SCOPE_LABEL[s]}</button>
+          <button key={s} aria-pressed={scope === s} onClick={() => setScope(s)}>{L.scope[s]}</button>
         ))}
       </div>
 
-      <div className="daystrip" role="group" aria-label="Ngày">
+      <div className="daystrip" role="group" aria-label={tr("Ngày", "Day")}>
         {weekDates.map((x) => {
           const k = dateKey(x);
           return (
             <button key={k} aria-pressed={k === date} className={k === dateKey(today) ? "is-today" : ""} onClick={() => setDate(k)}>
-              <span>{state.routines[scope][weekOf(x, state.settings.cycleStart)]?.[dayIndex(x)]?.short ?? ""}</span>
+              <span>{L.dow[dayIndex(x)]}</span>
               <b>{x.getDate()}</b>
             </button>
           );
         })}
       </div>
 
-      <div className="seg" role="group" aria-label="Kiểu xem">
-        <button aria-pressed={mode === "steps"} onClick={() => setMode("steps")}>Minh hoạ</button>
-        <button aria-pressed={mode === "flow"} onClick={() => { setPlaying(false); setMode("flow"); }}>Hành trình</button>
+      <div className="seg" role="group" aria-label={tr("Kiểu xem", "View")}>
+        <button aria-pressed={mode === "steps"} onClick={() => setMode("steps")}>{tr("Minh hoạ", "Walkthrough")}</button>
+        <button aria-pressed={mode === "flow"} onClick={() => { setPlaying(false); setMode("flow"); }}>{tr("Hành trình", "Journey")}</button>
       </div>
 
       {sectionKeys.length > 1 && (
-        <div className="seg" role="group" aria-label="Buổi">
+        <div className="seg" role="group" aria-label={tr("Buổi", "Time of day")}>
           {sectionKeys.map((k) => (
             <button key={k} aria-pressed={secKey === k} onClick={() => setSection(k)}>
-              {SECTION_META[scope][k].tone === "am" ? "☀︎ " : "☾ "}{SECTION_META[scope][k].title}
+              {SECTION_META[scope][k].tone === "am" ? "☀︎ " : "☾ "}{L.section[scope][k][0]}
             </button>
           ))}
         </div>
@@ -150,18 +154,18 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
 
       {mode === "flow" ? (
         steps.length === 0
-          ? <div className="card empty">Không có bước nào cho {SECTION_META[scope][secKey]?.title.toLowerCase()} ngày này. Bấm ✎ để thêm.</div>
-          : <Journey tone={SECTION_META[scope][secKey]?.tone ?? "am"} title={SECTION_META[scope][secKey]?.title ?? ""} steps={steps} byId={byId}
+          ? <div className="card empty">{tr(`Không có bước nào cho ${secTitle.toLowerCase()} ngày này. Bấm ✎ để thêm.`, `Nothing planned for ${secTitle.toLowerCase()} on this day. Tap ✎ to add steps.`)}</div>
+          : <Journey tone={SECTION_META[scope][secKey]?.tone ?? "am"} title={secTitle} steps={steps} byId={byId}
               isDone={isDone} setDone={setDone} onOpen={(i) => pickFromFlow(secKey, i)} />
       ) : steps.length === 0 ? (
-        <div className="card empty">Không có bước nào cho {SECTION_META[scope][secKey]?.title.toLowerCase()} ngày này. Bấm ✎ để thêm.</div>
+        <div className="card empty">{tr(`Không có bước nào cho ${secTitle.toLowerCase()} ngày này. Bấm ✎ để thêm.`, `Nothing planned for ${secTitle.toLowerCase()} on this day. Tap ✎ to add steps.`)}</div>
       ) : (
         <>
           <div className="rstage" aria-live="polite">
             <div className="sun" style={{ background: look.bg }} />
             <div className="stepcap">
-              <span className="n">Bước {cur + 1} / {steps.length} · {curProd?.group}</span>
-              <span className="t">{curProd?.name ?? "(đã xoá)"}</span>
+              <span className="n">{tr("Bước", "Step")} {cur + 1} / {steps.length} · {L.group(curProd?.group ?? "")}</span>
+              <span className="t">{curProd?.name ?? tr("(đã xoá)", "(deleted)")}</span>
             </div>
             <div key={`g${nonce}`} className="glow go" style={{ background: `radial-gradient(circle, ${look.col} 0%, transparent 70%)` }} />
             <FaceArt />
@@ -172,31 +176,31 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
                 <div key={`${i}-${p.id}`} className={`layer ${i === cur ? "new" : ""}`}
                   style={{ background: productLook(p.group).col, height: 9 + j * 2.5 }} title={p.name} />
               ))}
-              <div className="lbl">Các lớp trên da</div>
+              <div className="lbl">{tr("Các lớp trên da", "Layers on skin")}</div>
             </div>
           </div>
 
           <div className="controls">
-            <button className="iconbtn" aria-label="Bước trước" disabled={cur === 0} onClick={() => { setPlaying(false); show(cur - 1); }}><G name="prev" size={20} width={2.5} /></button>
+            <button className="iconbtn" aria-label={tr("Bước trước", "Previous step")} disabled={cur === 0} onClick={() => { setPlaying(false); show(cur - 1); }}><G name="prev" size={20} width={2.5} /></button>
             <button className="pill grow" onClick={() => { if (playing) setPlaying(false); else { show(0); setPlaying(true); } }}>
-              {playing ? "❚❚ Tạm dừng" : "▶ Xem cả routine"}
+              {playing ? tr("❚❚ Tạm dừng", "❚❚ Pause") : tr("▶ Xem cả routine", "▶ Play the routine")}
             </button>
-            <button className="iconbtn" aria-label="Bước sau" disabled={cur >= steps.length - 1} onClick={() => { setPlaying(false); show(cur + 1); }}><G name="next" size={20} width={2.5} /></button>
+            <button className="iconbtn" aria-label={tr("Bước sau", "Next step")} disabled={cur >= steps.length - 1} onClick={() => { setPlaying(false); show(cur + 1); }}><G name="next" size={20} width={2.5} /></button>
           </div>
 
           <div className="detail">
-            <p>{curStep?.n || curProd?.note || `Thoa ${curProd?.group.toLowerCase() ?? "sản phẩm"} đều lên da.`}</p>
+            <p>{curStep?.n || curProd?.note || tr(`Thoa ${curProd?.group.toLowerCase() ?? "sản phẩm"} đều lên da.`, `Apply the ${L.group(curProd?.group ?? "").toLowerCase() || "product"} evenly.`)}</p>
             {curProd && (
               <button className={`pill sm ${isDone(curProd.id) ? "soft" : ""}`} onClick={() => {
                 const was = isDone(curProd.id);
                 setDone(curProd.id, !was);
                 if (!was && cur < steps.length - 1) show(cur + 1);
-                if (!was && cur === steps.length - 1) toast("Xong cả routine rồi!");
-              }}>{isDone(curProd.id) ? "Bỏ đánh dấu" : "✓ Xong bước này"}</button>
+                if (!was && cur === steps.length - 1) toast(tr("Xong cả routine rồi!", "Routine complete!"));
+              }}>{isDone(curProd.id) ? tr("Bỏ đánh dấu", "Undo") : tr("✓ Xong bước này", "✓ Done with this step")}</button>
             )}
           </div>
 
-          <div className="label">Thứ tự sử dụng · đã xong {doneCount}/{steps.length}</div>
+          <div className="label">{tr("Thứ tự sử dụng", "Order of use")} · {tr("đã xong", "done")} {doneCount}/{steps.length}</div>
           <ol className="timeline" ref={listRef}>
             {steps.map((s, i) => {
               const p = byId[s.p];
@@ -208,12 +212,12 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
                       <span className="num">{i + 1}</span><ProductArt group={p?.group} size={42} />
                     </span>
                     <span className="info">
-                      <span className="nm">{p?.name ?? "(đã xoá)"}</span>
-                      <span className="meta">{s.n || p?.group}</span>
+                      <span className="nm">{p?.name ?? tr("(đã xoá)", "(deleted)")}</span>
+                      <span className="meta">{s.n || L.group(p?.group ?? "")}</span>
                     </span>
                   </button>
                   {p && (
-                    <button className="tick" aria-label={done ? "Bỏ đánh dấu" : "Đánh dấu đã xong"} aria-pressed={done}
+                    <button className="tick" aria-label={done ? tr("Bỏ đánh dấu", "Undo") : tr("Đánh dấu đã xong", "Mark as done")} aria-pressed={done}
                       onClick={() => setDone(s.p, !done)}><G name="check" size={14} width={3.5} /></button>
                   )}
                 </li>
@@ -222,6 +226,8 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
           </ol>
         </>
       )}
+
+      <SkinCheck state={state} mutate={mutate} date={date} toast={toast} />
     </section>
   );
 }
@@ -231,6 +237,7 @@ function Journey({ tone, title, steps, byId, isDone, setDone, onOpen }: {
   tone: "am" | "pm"; title: string; steps: Step[]; byId: Record<string, Product>;
   isDone: (pid: string) => boolean; setDone: (pid: string, done: boolean) => void; onOpen: (i: number) => void;
 }) {
+  const { tr, L } = useI18n();
   const done = steps.filter((s) => isDone(s.p)).length;
   const left = steps.length - done;
   const pct = steps.length ? done / steps.length : 0;
@@ -241,7 +248,7 @@ function Journey({ tone, title, steps, byId, isDone, setDone, onOpen }: {
         <div className="trail">
           <div className="trail-head">
             <span>{title}</span>
-            <span>{done}/{steps.length} bước</span>
+            <span>{done}/{steps.length} {tr("bước", "steps")}</span>
           </div>
           <div className="track">
             <span className="tnode start" aria-hidden="true">{tone === "am" ? "☀︎" : "☾"}</span>
@@ -259,7 +266,7 @@ function Journey({ tone, title, steps, byId, isDone, setDone, onOpen }: {
 
       <div className="jhead">
         <span className="jcal" aria-hidden="true"><G name="check" size={14} width={3} /></span>
-        {left === 0 ? `Xong hết ${title.toLowerCase()} rồi, giỏi quá!` : `Còn ${left} bước cho ${title.toLowerCase()}!`}
+        {left === 0 ? tr(`Xong hết ${title.toLowerCase()} rồi, giỏi quá!`, `${title} all done, well done!`) : tr(`Còn ${left} bước cho ${title.toLowerCase()}!`, `${left} step${left > 1 ? "s" : ""} left for ${title.toLowerCase()}!`)}
       </div>
 
       <ol className="jlist">
@@ -269,18 +276,18 @@ function Journey({ tone, title, steps, byId, isDone, setDone, onOpen }: {
           const look = productLook(p?.group);
           return (
             <li key={`${s.p}-${i}`} className={`jcard ${on ? "done" : ""}`}>
-              <button className="jmain" onClick={() => onOpen(i)} aria-label={`Xem cách dùng bước ${i + 1}: ${p?.name ?? ""}`}>
+              <button className="jmain" onClick={() => onOpen(i)} aria-label={`${tr("Xem cách dùng bước", "How to use step")} ${i + 1}: ${p?.name ?? ""}`}>
                 <span className="jthumb" style={{ background: look.bg }}>
                   <ProductArt group={p?.group} size={46} />
                   <span className="jnum">{i + 1}</span>
                 </span>
                 <span className="info">
-                  <span className="jname">{p?.name ?? "(đã xoá)"}</span>
-                  <span className="jsub">{s.n || p?.group}</span>
+                  <span className="jname">{p?.name ?? tr("(đã xoá)", "(deleted)")}</span>
+                  <span className="jsub">{s.n || L.group(p?.group ?? "")}</span>
                 </span>
               </button>
               {p && (
-                <button className="jtick" aria-pressed={on} aria-label={on ? `Bỏ đánh dấu ${p.name}` : `Đánh dấu đã dùng ${p.name}`}
+                <button className="jtick" aria-pressed={on} aria-label={on ? `${tr("Bỏ đánh dấu", "Undo")} ${p.name}` : `${tr("Đánh dấu đã dùng", "Mark as used")} ${p.name}`}
                   onClick={() => setDone(s.p, !on)}>
                   <G name="check" size={24} width={3} />
                 </button>
@@ -354,114 +361,270 @@ function FaceArt() {
 }
 
 /* ================= CHỈNH LỊCH ================= */
-function ScheduleEditor({ scope, setScope, initialWeek, initialDay, state, mutate, onDone }: {
+function ScheduleEditor({ scope, setScope, initialWeek, initialDay, state, mutate, toast, onDone }: {
   scope: Scope; setScope: (s: Scope) => void; initialWeek: "A" | "B"; initialDay: number;
-  state: State; mutate: Mutate; onDone: () => void;
+  state: State; mutate: Mutate; toast: (m: string) => void; onDone: () => void;
 }) {
+  const { tr, L } = useI18n();
   const [week, setWeek] = useState<"A" | "B">(initialWeek);
   const [day, setDay] = useState(initialDay);
-  const [dragFrom, setDragFrom] = useState<{ sec: number; idx: number } | null>(null);
-  const [adding, setAdding] = useState<Record<number, string>>({});
+  const [picker, setPicker] = useState<number | null>(null);
+  const [noteFor, setNoteFor] = useState<{ sec: number; idx: number; text: string } | null>(null);
+  const [openRow, setOpenRow] = useState<string | null>(null);
 
   const days = state.routines[scope][week];
   const current = days[day];
-  const products = state.products.filter((p) => p.scope === scope);
   const byId = Object.fromEntries(state.products.map((p) => [p.id, p]));
 
   const putSection = (secIdx: number, steps: Step[]) =>
-    mutate("lịch", () => api("/api/routine/section", "PUT", { scope, week, dayIndex: day, key: current.sections[secIdx].key, steps }));
-  const reorder = (secIdx: number, from: number, to: number) => {
+    mutate(tr("lịch", "routine"), () => api("/api/routine/section", "PUT", { scope, week, dayIndex: day, key: current.sections[secIdx].key, steps }));
+  const move = (secIdx: number, from: number, to: number) => {
     const steps = [...current.sections[secIdx].steps];
-    if (to < 0 || to >= steps.length) return;
+    if (from === to || to < 0 || to >= steps.length) return;
     const [moved] = steps.splice(from, 1);
     steps.splice(to, 0, moved);
     putSection(secIdx, steps);
   };
-  const editNote = (secIdx: number, idx: number) => {
-    const st = current.sections[secIdx].steps[idx];
-    const n = prompt("Ghi chú cho bước này:", st.n);
-    if (n === null) return;
-    putSection(secIdx, current.sections[secIdx].steps.map((s, i) => (i === idx ? { ...s, n } : s)));
-  };
 
   return (
-    <section className="view">
+    <section className="view" onPointerDown={(e) => { if (!(e.target as HTMLElement).closest(".erow")) setOpenRow(null); }}>
       <div className="top">
-        <div className="grow"><div className="sub">{SCOPE_LABEL[scope]} · {WEEK_LABEL[week]}</div><h1>Chỉnh lịch</h1></div>
-        <button className="pill" onClick={onDone}>Xong</button>
+        <div className="grow"><div className="sub">{L.scope[scope]} · {L.week[week]}</div><h1>{tr("Chỉnh lịch", "Edit routine")}</h1></div>
+        <button className="pill" onClick={onDone}>{tr("Xong", "Done")}</button>
       </div>
 
-      <div className="chips" role="group" aria-label="Mục">
-        {SCOPES.map((s) => <button key={s} aria-pressed={scope === s} onClick={() => setScope(s)}>{SCOPE_LABEL[s]}</button>)}
+      <div className="chips" role="group" aria-label={tr("Mục", "Area")}>
+        {SCOPES.map((s) => <button key={s} aria-pressed={scope === s} onClick={() => setScope(s)}>{L.scope[s]}</button>)}
       </div>
-      <div className="seg" role="group" aria-label="Tuần trong chu kỳ">
-        {(["A", "B"] as const).map((w) => <button key={w} aria-pressed={week === w} onClick={() => setWeek(w)}>{WEEK_LABEL[w]}</button>)}
+      <div className="seg" role="group" aria-label={tr("Tuần trong chu kỳ", "Week of the cycle")}>
+        {(["A", "B"] as const).map((w) => <button key={w} aria-pressed={week === w} onClick={() => setWeek(w)}>{L.week[w]}</button>)}
       </div>
-      <div className="daystrip" role="group" aria-label="Thứ">
+      <div className="daystrip" role="group" aria-label={tr("Thứ", "Weekday")}>
         {days.map((d, i) => (
-          <button key={i} aria-pressed={i === day} onClick={() => setDay(i)}><span>{d.short}</span><b>{d.full.split(" ").pop()}</b></button>
+          <button key={i} aria-pressed={i === day} onClick={() => setDay(i)}><span>{L.dow[i]}</span><b className="wd">{L.days[i].split(" ").pop()!.slice(0, 4)}</b></button>
         ))}
       </div>
 
       <div className="card row">
-        <div className="grow"><div className="label">Trọng tâm {current.full.toLowerCase()}</div><div className="h3">{current.focus || "—"}</div></div>
-        <button className="iconbtn" aria-label="Sửa trọng tâm" onClick={() => {
-          const focus = prompt("Trọng tâm của ngày:", current.focus);
+        <div className="grow"><div className="label">{tr("Trọng tâm", "Focus for")} {L.days[day].toLowerCase()}</div><div className="h3">{current.focus || "—"}</div></div>
+        <button className="iconbtn" aria-label={tr("Sửa trọng tâm", "Edit focus")} onClick={() => {
+          const focus = prompt(tr("Trọng tâm của ngày:", "Focus of the day:"), current.focus);
           if (focus === null) return;
-          mutate("lịch", () => api("/api/routine/day", "PATCH", { scope, week, dayIndex: day, focus }));
+          mutate(tr("lịch", "routine"), () => api("/api/routine/day", "PATCH", { scope, week, dayIndex: day, focus }));
         }}><G name="edit" size={18} /></button>
       </div>
 
+      <p className="hint">{tr("Kéo chấm ⠿ bên trái để đổi thứ tự · vuốt sang trái để sửa hoặc xoá.", "Drag the ⠿ dots to reorder · swipe left to edit or remove.")}</p>
+
       {current.sections.map((sec, secIdx) => {
-        const meta = SECTION_META[scope][sec.key] ?? { title: sec.key, sub: "", tone: "am" as const };
-        const sel = adding[secIdx] ?? products[0]?.id ?? "";
+        const meta = SECTION_META[scope][sec.key] ?? { tone: "am" as const };
+        const [title, sub] = L.section[scope][sec.key] ?? [sec.key, ""];
         return (
           <div className={`card group ${meta.tone}`} key={sec.key}>
-            <div className="group-head"><div className="grow"><div className="h3">{meta.title}</div><div className="small">{meta.sub}</div></div></div>
-            <ul className="edit-list">
-              {sec.steps.length === 0 && <li className="small">Chưa có bước nào.</li>}
-              {sec.steps.map((st, idx) => {
-                const p = byId[st.p];
-                return (
-                  <li key={`${st.p}-${idx}`} draggable
-                    onDragStart={() => setDragFrom({ sec: secIdx, idx })}
-                    onDragOver={(e) => { if (dragFrom?.sec === secIdx) e.preventDefault(); }}
-                    onDrop={(e) => { if (dragFrom?.sec !== secIdx) return; e.preventDefault(); reorder(secIdx, dragFrom.idx, idx); setDragFrom(null); }}>
-                    <span className="thumb sm" style={{ background: productLook(p?.group).bg }}><ProductArt group={p?.group} size={30} /></span>
-                    <span className="info">
-                      <span className="nm">{idx + 1}. {p?.name ?? "(sản phẩm đã xoá)"}
-                        {p && p.status !== "active" && <span className={`status s-${p.status}`}>{STATUS[p.status]}</span>}</span>
-                      {st.n && <span className="meta">{st.n}</span>}
-                    </span>
-                    <span className="acts">
-                      <button aria-label="Lên" disabled={idx === 0} onClick={() => reorder(secIdx, idx, idx - 1)}>▲</button>
-                      <button aria-label="Xuống" disabled={idx === sec.steps.length - 1} onClick={() => reorder(secIdx, idx, idx + 1)}>▼</button>
-                      <button aria-label="Sửa ghi chú" onClick={() => editNote(secIdx, idx)}>✎</button>
-                      <button aria-label="Bỏ bước" onClick={() => putSection(secIdx, sec.steps.filter((_, i) => i !== idx))}>✕</button>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="add-step">
-              <select aria-label="Chọn sản phẩm" value={sel} onChange={(e) => setAdding({ ...adding, [secIdx]: e.target.value })}>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>{p.group} — {p.name}{p.status !== "active" ? ` (${STATUS[p.status]})` : ""}</option>
-                ))}
-              </select>
-              <button className="pill soft sm" onClick={() => {
-                if (!sel) return;
-                putSection(secIdx, [...sec.steps, { p: sel, n: byId[sel]?.note ?? "" }]);
-              }}>+ Thêm</button>
-            </div>
+            <div className="group-head"><div className="grow"><div className="h3">{title}</div><div className="small">{sub}</div></div></div>
+            {sec.steps.length === 0 ? <div className="small">{tr("Chưa có bước nào.", "No steps yet.")}</div> : (
+              <DragList
+                items={sec.steps}
+                rowKey={(st, idx) => `${sec.key}-${st.p}-${idx}`}
+                onMove={(from, to) => move(secIdx, from, to)}
+                render={(st, idx, k) => {
+                  const p = byId[st.p];
+                  return (
+                    <SwipeRow open={openRow === k} setOpen={(o) => setOpenRow(o ? k : null)}
+                      actions={<>
+                        <button className="sw-edit" onClick={() => { setOpenRow(null); setNoteFor({ sec: secIdx, idx, text: st.n }); }}>
+                          <G name="edit" size={18} />{tr("Sửa", "Edit")}
+                        </button>
+                        <button className="sw-del" onClick={() => {
+                          setOpenRow(null);
+                          putSection(secIdx, sec.steps.filter((_, i) => i !== idx)).then((ok) => ok && toast(tr(`Đã bỏ ${p?.name ?? "bước"}`, `Removed ${p?.name ?? "step"}`)));
+                        }}><G name="trash" size={18} />{tr("Xoá", "Remove")}</button>
+                      </>}>
+                      <span className="num">{idx + 1}</span>
+                      <span className="thumb sm" style={{ background: productLook(p?.group).bg }}><ProductArt group={p?.group} size={30} /></span>
+                      <span className="info">
+                        <span className="nm">{p?.name ?? tr("(sản phẩm đã xoá)", "(deleted product)")}
+                          {p && p.status !== "active" && <span className={`status s-${p.status}`}>{L.status[p.status]}</span>}</span>
+                        <span className="meta">{st.n || L.group(p?.group ?? "")}</span>
+                      </span>
+                    </SwipeRow>
+                  );
+                }}
+              />
+            )}
+            <button className="addstep" onClick={() => setPicker(secIdx)}>
+              <G name="plus" size={18} width={2.5} />{tr("Thêm bước", "Add a step")}
+            </button>
           </div>
         );
       })}
 
       <button className="pill soft" onClick={() => {
-        if (!confirm(`Chép toàn bộ lịch ${WEEK_LABEL[week]} đè lên tuần còn lại?`)) return;
-        mutate("lịch", () => api("/api/routine/copy", "POST", { scope, from: week, to: week === "A" ? "B" : "A" }));
-      }}>⧉ Chép lịch sang tuần còn lại</button>
+        if (!confirm(tr(`Chép toàn bộ lịch ${L.week[week]} đè lên tuần còn lại?`, `Copy the whole ${L.week[week]} schedule over the other week?`))) return;
+        mutate(tr("lịch", "routine"), () => api("/api/routine/copy", "POST", { scope, from: week, to: week === "A" ? "B" : "A" }));
+      }}>⧉ {tr("Chép lịch sang tuần còn lại", "Copy to the other week")}</button>
+
+      <Sheet open={picker !== null} onClose={() => setPicker(null)} title={tr("Thêm sản phẩm vào lịch", "Add a product to the routine")}>
+        {picker !== null && (
+          <ProductPicker scope={scope} products={state.products} already={current.sections[picker]?.steps.map((s) => s.p) ?? []}
+            onPick={(p) => {
+              const sec = current.sections[picker];
+              setPicker(null);
+              putSection(picker, [...sec.steps, { p: p.id, n: p.note ?? "" }]).then((ok) => ok && toast(tr(`Đã thêm ${p.name}`, `Added ${p.name}`)));
+            }} />
+        )}
+      </Sheet>
+
+      <Sheet open={!!noteFor} onClose={() => setNoteFor(null)} title={tr("Ghi chú cho bước này", "Note for this step")}>
+        {noteFor && (
+          <form className="form" onSubmit={(e) => {
+            e.preventDefault();
+            const sec = current.sections[noteFor.sec];
+            putSection(noteFor.sec, sec.steps.map((s, i) => (i === noteFor.idx ? { ...s, n: noteFor.text.trim() } : s)));
+            setNoteFor(null);
+          }}>
+            <div className="small">{byId[current.sections[noteFor.sec]?.steps[noteFor.idx]?.p]?.name}</div>
+            <textarea autoFocus value={noteFor.text} onChange={(e) => setNoteFor({ ...noteFor, text: e.target.value })}
+              placeholder={tr("VD: Đợi da khô 10 phút", "e.g. Wait 10 minutes for skin to dry")} />
+            <button className="pill wide" type="submit">{tr("Lưu", "Save")}</button>
+          </form>
+        )}
+      </Sheet>
     </section>
+  );
+}
+
+/** Danh sách kéo-thả bằng tay cầm ⋮⋮ (chạy được cả cảm ứng lẫn chuột) */
+function DragList<T>({ items, rowKey, onMove, render }: {
+  items: T[]; rowKey: (it: T, i: number) => string; onMove: (from: number, to: number) => void;
+  render: (it: T, i: number, key: string) => React.ReactNode;
+}) {
+  const ref = useRef<HTMLUListElement>(null);
+  const [drag, setDrag] = useState<{ from: number; to: number; dy: number; h: number } | null>(null);
+  const info = useRef<{ startY: number; mids: number[]; h: number } | null>(null);
+
+  const start = (i: number, e: React.PointerEvent) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const rows = Array.from(ref.current?.children ?? []) as HTMLElement[];
+    const rects = rows.map((r) => r.getBoundingClientRect());
+    info.current = { startY: e.clientY, mids: rects.map((r) => r.top + r.height / 2), h: rects[i].height + 8 };
+    setDrag({ from: i, to: i, dy: 0, h: info.current.h });
+    navigator.vibrate?.(8);
+  };
+  const moveP = (e: React.PointerEvent) => {
+    if (!drag || !info.current) return;
+    const dy = e.clientY - info.current.startY;
+    const y = info.current.mids[drag.from] + dy;
+    let to = drag.from;
+    info.current.mids.forEach((m, j) => {
+      if (j < drag.from && y < m) to = Math.min(to, j);
+      if (j > drag.from && y > m) to = Math.max(to, j);
+    });
+    setDrag({ ...drag, dy, to });
+  };
+  const end = () => {
+    if (drag && drag.to !== drag.from) onMove(drag.from, drag.to);
+    setDrag(null); info.current = null;
+  };
+
+  return (
+    <ul className={`edit-list ${drag ? "dragging" : ""}`} ref={ref}>
+      {items.map((it, i) => {
+        let ty = 0;
+        if (drag) {
+          if (i === drag.from) ty = drag.dy;
+          else if (drag.from < drag.to && i > drag.from && i <= drag.to) ty = -drag.h;
+          else if (drag.from > drag.to && i < drag.from && i >= drag.to) ty = drag.h;
+        }
+        const k = rowKey(it, i);
+        return (
+          <li key={k} className={`erow ${drag?.from === i ? "lifted" : ""}`} style={{ transform: ty ? `translateY(${ty}px)` : undefined }}>
+            <span className="grip" aria-label="⋮⋮" role="button"
+              onPointerDown={(e) => start(i, e)} onPointerMove={moveP} onPointerUp={end} onPointerCancel={end}>
+              <G name="grip" size={20} width={3.2} />
+            </span>
+            {render(it, i, k)}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** Hàng vuốt sang trái để hiện nút Sửa / Xoá */
+function SwipeRow({ open, setOpen, actions, children }: {
+  open: boolean; setOpen: (o: boolean) => void; actions: React.ReactNode; children: React.ReactNode;
+}) {
+  const W = 148;
+  const [dx, setDx] = useState<number | null>(null);
+  const st = useRef<{ x: number; y: number; base: number; locked: "x" | "y" | null } | null>(null);
+  const x = dx ?? (open ? -W : 0);
+  return (
+    <div className="swipe">
+      <div className="sw-actions" style={{ width: W }} aria-hidden={!open}>{actions}</div>
+      <div className="sw-main" style={{ transform: `translateX(${x}px)`, transition: dx === null ? "transform .3s var(--ease)" : "none" }}
+        onPointerDown={(e) => { st.current = { x: e.clientX, y: e.clientY, base: open ? -W : 0, locked: null }; }}
+        onPointerMove={(e) => {
+          const s = st.current; if (!s) return;
+          const mx = e.clientX - s.x, my = e.clientY - s.y;
+          if (!s.locked && Math.abs(mx) + Math.abs(my) > 8) {
+            s.locked = Math.abs(mx) > Math.abs(my) ? "x" : "y";
+            if (s.locked === "x") (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+          }
+          if (s.locked === "x") setDx(Math.max(-W - 30, Math.min(0, s.base + mx)));
+        }}
+        onPointerUp={() => {
+          const s = st.current; st.current = null;
+          if (s?.locked === "x" && dx !== null) setOpen(dx < -W / 2);
+          else if (!s?.locked && open) setOpen(false);
+          setDx(null);
+        }}
+        onPointerCancel={() => { st.current = null; setDx(null); }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Chọn sản phẩm để thêm vào lịch: tìm theo tên, lọc theo loại */
+function ProductPicker({ scope, products, already, onPick }: {
+  scope: Scope; products: Product[]; already: string[]; onPick: (p: Product) => void;
+}) {
+  const { tr, L } = useI18n();
+  const [q, setQ] = useState("");
+  const [group, setGroup] = useState<string>("all");
+  const mine = products.filter((p) => p.scope === scope && p.status !== "empty");
+  const groups = GROUPS[scope].filter((g) => mine.some((p) => p.group === g));
+  const list = mine
+    .filter((p) => group === "all" || p.group === group)
+    .filter((p) => (p.name + " " + p.group + " " + L.group(p.group)).toLowerCase().includes(q.trim().toLowerCase()))
+    .sort((a, b) => (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1));
+  return (
+    <div className="picker">
+      <label className="search">
+        <G name="search" size={18} width={2.4} />
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Tìm sản phẩm", "Search products")} />
+      </label>
+      <div className="chips scroll" role="group" aria-label={tr("Loại", "Category")}>
+        <button aria-pressed={group === "all"} onClick={() => setGroup("all")}>{tr("Tất cả", "All")}</button>
+        {groups.map((g) => <button key={g} aria-pressed={group === g} onClick={() => setGroup(g)}>{L.group(g)}</button>)}
+      </div>
+      <ul className="pick-list">
+        {list.length === 0 && <li className="empty">{tr("Không tìm thấy sản phẩm phù hợp.", "No matching products.")}</li>}
+        {list.map((p) => (
+          <li key={p.id}>
+            <button onClick={() => onPick(p)}>
+              <span className="thumb sm" style={{ background: productLook(p.group).bg }}><ProductArt group={p.group} size={30} /></span>
+              <span className="info">
+                <span className="nm">{p.name}</span>
+                <span className="meta">{L.group(p.group)}{p.status !== "active" ? ` · ${L.status[p.status]}` : ""}{already.includes(p.id) ? ` · ${tr("đã có trong buổi này", "already in this routine")}` : ""}</span>
+              </span>
+              <span className="plus"><G name="plus" size={18} width={2.6} /></span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
