@@ -24,7 +24,7 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
   const [playing, setPlaying] = useState(false);
   const [nonce, setNonce] = useState(0);
   const [editing, setEditing] = useState(false);
-  const [mode, setMode] = useState<"steps" | "flow">("steps");
+  const [mode, setMode] = useState<"steps" | "flow">("flow");
   const pending = useRef<number | null>(null);
   const listRef = useRef<HTMLOListElement>(null);
   const follow = useRef(false);
@@ -134,13 +134,10 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
       </div>
 
       <div className="seg" role="group" aria-label="Kiểu xem">
-        <button aria-pressed={mode === "steps"} onClick={() => setMode("steps")}>Từng bước</button>
-        <button aria-pressed={mode === "flow"} onClick={() => { setPlaying(false); setMode("flow"); }}>Sơ đồ cả ngày</button>
+        <button aria-pressed={mode === "steps"} onClick={() => setMode("steps")}>Minh hoạ</button>
+        <button aria-pressed={mode === "flow"} onClick={() => { setPlaying(false); setMode("flow"); }}>Hành trình</button>
       </div>
 
-      {mode === "flow" ? (
-        <FlowChart scope={scope} day={day} byId={byId} isDone={(sec, pid) => !!state.checks[date]?.[`${scope}:${sec}:${pid}`]} onPick={pickFromFlow} />
-      ) : <>
       {sectionKeys.length > 1 && (
         <div className="seg" role="group" aria-label="Buổi">
           {sectionKeys.map((k) => (
@@ -151,7 +148,12 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
         </div>
       )}
 
-      {steps.length === 0 ? (
+      {mode === "flow" ? (
+        steps.length === 0
+          ? <div className="card empty">Không có bước nào cho {SECTION_META[scope][secKey]?.title.toLowerCase()} ngày này. Bấm ✎ để thêm.</div>
+          : <Journey tone={SECTION_META[scope][secKey]?.tone ?? "am"} title={SECTION_META[scope][secKey]?.title ?? ""} steps={steps} byId={byId}
+              isDone={isDone} setDone={setDone} onOpen={(i) => pickFromFlow(secKey, i)} />
+      ) : steps.length === 0 ? (
         <div className="card empty">Không có bước nào cho {SECTION_META[scope][secKey]?.title.toLowerCase()} ngày này. Bấm ✎ để thêm.</div>
       ) : (
         <>
@@ -220,142 +222,117 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
           </ol>
         </>
       )}
-      </>}
     </section>
   );
 }
 
-/* ================= SƠ ĐỒ CẢ NGÀY ================= */
-type FlowItem =
-  | { t: "sec"; key: string; label: string; x: number; y: number; w: number; h: number; row: number }
-  | { t: "step"; key: string; i: number; n: number; p?: Product; x: number; y: number; w: number; h: number; row: number };
-
-/** Lưới gọn: 3 ô mỗi hàng, đi theo hình chữ S trong từng buổi để cả ngày vừa một màn hình */
-const FW = 340, COLS = 3, TILE_W = 96, TILE_H = 74, GAP_X = (FW - COLS * TILE_W) / (COLS - 1), GAP_Y = 14, PILL_W = 150, PILL_H = 26;
-
-/** Ngắt tên dài thành tối đa `max` dòng, mỗi dòng ~`len` ký tự */
-function wrap(text: string, len: number, max: number) {
-  const words = text.split(/\s+/), lines: string[] = [];
-  let cur = "";
-  for (const w of words) {
-    if ((cur + " " + w).trim().length > len && cur) { lines.push(cur); cur = w; } else cur = (cur + " " + w).trim();
-  }
-  if (cur) lines.push(cur);
-  for (let k = 0; k < lines.length; k++) if (lines[k].length > len) lines[k] = lines[k].slice(0, len - 1) + "…";
-  if (lines.length > max) { lines.length = max; lines[max - 1] = lines[max - 1].slice(0, len - 1).replace(/\s*$/, "") + "…"; }
-  return lines;
-}
-
-function FlowChart({ scope, day, byId, isDone, onPick }: {
-  scope: Scope; day?: { sections: { key: string; steps: Step[] }[] }; byId: Record<string, Product>;
-  isDone: (sec: string, pid: string) => boolean; onPick: (sec: string, i: number) => void;
+/* ================= HÀNH TRÌNH (tick từng sản phẩm) ================= */
+function Journey({ tone, title, steps, byId, isDone, setDone, onOpen }: {
+  tone: "am" | "pm"; title: string; steps: Step[]; byId: Record<string, Product>;
+  isDone: (pid: string) => boolean; setDone: (pid: string, done: boolean) => void; onOpen: (i: number) => void;
 }) {
-  const [run, setRun] = useState(0);
-  const box = useRef<HTMLDivElement>(null);
-  // đưa cả sơ đồ vào khung nhìn khi mở
-  useEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    const top = el.getBoundingClientRect().top + window.scrollY - 12;
-    window.scrollTo({ top: Math.max(0, top - Math.max(0, window.innerHeight - 100 - el.offsetHeight - 12)), behavior: "smooth" });
-  }, [scope, day]);
-  const { items, H, path, links } = useMemo(() => {
-    const items: FlowItem[] = [];
-    let y = 2, row = 0;
-    const order = Object.keys(SECTION_META[scope]);
-    const secs = [...(day?.sections ?? [])].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key)).filter((s) => s.steps.length);
-    secs.forEach((sec, si) => {
-      const meta = SECTION_META[scope][sec.key];
-      if (si > 0) y += 6;
-      items.push({ t: "sec", key: sec.key, row: row++, label: `${meta?.tone === "pm" ? "☾" : "☀︎"} ${meta?.title ?? sec.key} · ${sec.steps.length} bước`, x: (FW - PILL_W) / 2, y, w: PILL_W, h: PILL_H });
-      y += PILL_H + 14;
-      sec.steps.forEach((st, i) => {
-        const r = Math.floor(i / COLS), c = i % COLS;
-        const col = r % 2 === 0 ? c : COLS - 1 - c; // chữ S: hàng lẻ đi ngược lại
-        items.push({ t: "step", key: sec.key, i, n: i + 1, p: byId[st.p], row: row + r, x: col * (TILE_W + GAP_X), y: y + r * (TILE_H + GAP_Y), w: TILE_W, h: TILE_H });
-      });
-      const rows = Math.ceil(sec.steps.length / COLS);
-      row += rows;
-      y += rows * (TILE_H + GAP_Y) - GAP_Y + 12;
-    });
-    const cx = (it: FlowItem) => it.x + it.w / 2, cy = (it: FlowItem) => it.y + it.h / 2;
-    const links: string[] = [];
-    let path = items.length ? `M${cx(items[0])} ${cy(items[0])}` : "";
-    items.forEach((b, k) => {
-      if (k === 0) return;
-      const a = items[k - 1];
-      let d: string;
-      if (a.row === b.row) {
-        // cùng hàng: mũi tên ngang
-        const right = b.x > a.x;
-        const x1 = right ? a.x + a.w : a.x, x2 = right ? b.x : b.x + b.w;
-        d = `M${x1} ${cy(a)} L${x2} ${cy(b)}`;
-      } else {
-        // xuống hàng: đường cong từ đáy ô trên tới đỉnh ô dưới
-        const x1 = cx(a), y1 = a.y + a.h, x2 = cx(b), y2 = b.y, m = (y2 - y1) * 0.9;
-        d = `M${x1} ${y1} C${x1} ${y1 + m} ${x2} ${y2 - m} ${x2} ${y2}`;
-      }
-      links.push(d);
-      path += ` L${d.slice(1)} L${cx(b)} ${cy(b)}`;
-    });
-    return { items, H: y, path, links };
-  }, [scope, day, byId]);
-
-  if (!items.length) return <div className="card empty">Ngày này chưa có bước nào. Bấm ✎ để thêm.</div>;
-  const STEP_S = 0.18;
-  const total = items.length * STEP_S + 0.5;
-
+  const done = steps.filter((s) => isDone(s.p)).length;
+  const left = steps.length - done;
+  const pct = steps.length ? done / steps.length : 0;
   return (
-    <div className="card flow" ref={box}>
-      <button className="replay" aria-label="Chạy lại sơ đồ" onClick={() => setRun((r) => r + 1)}>↻</button>
-      <svg key={run} className="flowsvg" viewBox={`0 -2 ${FW} ${H + 2}`} role="img" aria-label="Sơ đồ thứ tự dùng sản phẩm trong ngày">
-        <defs>
-          <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M0 0L10 5L0 10z" fill="#A9B7C6" />
-          </marker>
-        </defs>
-        {links.map((d, k) => (
-          <g key={k}>
-            <path d={d} className="flink-bg" />
-            <path d={d} className="flink" pathLength={1} markerEnd="url(#fa)" style={{ animationDelay: `${(k + 0.7) * STEP_S}s` }} />
-          </g>
-        ))}
-        {items.map((it, k) => {
-          const delay = { animationDelay: `${k * STEP_S}s` };
-          if (it.t === "sec") {
-            return (
-              <g key={k} className="fnode" style={delay}>
-                <rect x={it.x} y={it.y} width={it.w} height={it.h} rx={it.h / 2} fill="#2D3A47" />
-                <text x={it.x + it.w / 2} y={it.y + it.h / 2 + 4} textAnchor="middle" className="ftext pill-t">{it.label}</text>
-              </g>
-            );
-          }
-          const look = productLook(it.p?.group);
-          const done = it.p ? isDone(it.key, it.p.id) : false;
-          const name = wrap(it.p?.name ?? "(đã xoá)", 15, 2);
-          return (
-            <g key={k} className="fnode step" style={delay} role="button" tabIndex={0}
-              aria-label={`Bước ${it.n}: ${it.p?.name ?? ""}`}
-              onClick={() => onPick(it.key, it.i)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onPick(it.key, it.i); }}>
-              <title>{it.p?.name}</title>
-              <rect x={it.x} y={it.y} width={it.w} height={it.h} rx="16" fill="#FFFCF5" stroke={done ? "#A8B58A" : "#EFE5D0"} strokeWidth={done ? 2.5 : 1.5} />
-              <rect x={it.x + 5} y={it.y + 5} width={it.w - 10} height="38" rx="12" fill={look.bg} />
-              <g transform={`translate(${it.x + it.w / 2 - 12.4} ${it.y + 7})`}><g className="fart"><ProductArt group={it.p?.group} size={34} /></g></g>
-              <circle cx={it.x + 8} cy={it.y + 8} r="9" fill={done ? "#A8B58A" : "#2D3A47"} />
-              <text x={it.x + 8} y={it.y + 11.5} textAnchor="middle" className="ftext num-t">{done ? "✓" : it.n}</text>
-              {name.map((ln, j) => (
-                <text key={j} x={it.x + it.w / 2} y={it.y + 55 + j * 12.5 + (name.length === 1 ? 6 : 0)} textAnchor="middle" className="ftext name-t">{ln}</text>
+    <>
+      <div className={`scene ${tone}`}>
+        <SceneArt tone={tone} />
+        <div className="trail">
+          <div className="trail-head">
+            <span>{title}</span>
+            <span>{done}/{steps.length} bước</span>
+          </div>
+          <div className="track">
+            <span className="tnode start" aria-hidden="true">{tone === "am" ? "☀︎" : "☾"}</span>
+            <div className="rail">
+              <i className="rail-done" style={{ width: `${pct * 100}%` }} />
+              {steps.map((s, i) => (
+                <b key={i} className={`rdot ${isDone(s.p) ? "on" : ""}`} style={{ left: `${((i + 1) / steps.length) * 100}%` }} />
               ))}
-            </g>
+              <img className="cat" src="/icons/cat-avatar.png" alt="" style={{ left: `${pct * 100}%` }} />
+            </div>
+            <span className={`tnode end ${left === 0 ? "on" : ""}`} aria-hidden="true">✓</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="jhead">
+        <span className="jcal" aria-hidden="true"><G name="check" size={14} width={3} /></span>
+        {left === 0 ? `Xong hết ${title.toLowerCase()} rồi, giỏi quá!` : `Còn ${left} bước cho ${title.toLowerCase()}!`}
+      </div>
+
+      <ol className="jlist">
+        {steps.map((s, i) => {
+          const p = byId[s.p];
+          const on = isDone(s.p);
+          const look = productLook(p?.group);
+          return (
+            <li key={`${s.p}-${i}`} className={`jcard ${on ? "done" : ""}`}>
+              <button className="jmain" onClick={() => onOpen(i)} aria-label={`Xem cách dùng bước ${i + 1}: ${p?.name ?? ""}`}>
+                <span className="jthumb" style={{ background: look.bg }}>
+                  <ProductArt group={p?.group} size={46} />
+                  <span className="jnum">{i + 1}</span>
+                </span>
+                <span className="info">
+                  <span className="jname">{p?.name ?? "(đã xoá)"}</span>
+                  <span className="jsub">{s.n || p?.group}</span>
+                </span>
+              </button>
+              {p && (
+                <button className="jtick" aria-pressed={on} aria-label={on ? `Bỏ đánh dấu ${p.name}` : `Đánh dấu đã dùng ${p.name}`}
+                  onClick={() => setDone(s.p, !on)}>
+                  <G name="check" size={24} width={3} />
+                </button>
+              )}
+            </li>
           );
         })}
-        <circle r="5" className="fdot" opacity="0">
-          <set attributeName="opacity" to="1" begin={`${total}s`} />
-          <animateMotion dur={`${Math.max(4, items.length * 0.7)}s`} begin={`${total}s`} repeatCount="indefinite" path={path} />
-        </circle>
-      </svg>
-      <div className="small">Đi theo mũi tên · bấm vào một bước để xem cách dùng.</div>
-    </div>
+      </ol>
+    </>
+  );
+}
+
+/** Cảnh minh hoạ nhỏ: đồi, hoa có mặt cười, mặt trời hoặc trăng */
+function SceneArt({ tone }: { tone: "am" | "pm" }) {
+  const am = tone === "am";
+  const flower = (x: number, y: number, petal: string, s = 1) => (
+    <g transform={`translate(${x} ${y}) scale(${s})`}>
+      <path d="M0 0 C-2 14 2 22 0 34" stroke="#7E9460" strokeWidth="3" fill="none" strokeLinecap="round" />
+      <ellipse cx="-8" cy="22" rx="7" ry="3.5" fill="#8FA071" transform="rotate(-30 -8 22)" />
+      {[0, 72, 144, 216, 288].map((a) => <ellipse key={a} cx="0" cy="-9" rx="6.5" ry="9" fill={petal} transform={`rotate(${a})`} />)}
+      <circle r="6.5" fill="#FCE3A6" />
+      <path d="M-3 -1q1.2 1.5 2.4 0M0.8 -1q1.2 1.5 2.4 0" stroke="#2D3A47" strokeWidth="1.1" fill="none" strokeLinecap="round" />
+    </g>
+  );
+  return (
+    <svg className="scene-art" viewBox="0 0 350 150" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id={`sky-${tone}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={am ? "#E5EAF0" : "#3E4C5C"} />
+          <stop offset="1" stopColor={am ? "#FFF7E6" : "#6E7F93"} />
+        </linearGradient>
+      </defs>
+      <rect width="350" height="150" fill={`url(#sky-${tone})`} />
+      {am ? (
+        <g className="sky-body"><circle cx="292" cy="34" r="20" fill="#FCE3A6" /><circle cx="292" cy="34" r="28" fill="#FCE3A6" opacity=".35" /></g>
+      ) : (
+        <g className="sky-body">
+          <path d="M296 16a20 20 0 1 0 14 34 16 16 0 1 1-14-34z" fill="#FFF0CF" />
+          {[[40, 22], [90, 40], [150, 18], [220, 30], [330, 70]].map(([x, y], k) => (
+            <path key={k} className="twinkle" style={{ animationDelay: `${k * 0.4}s` }} d={`M${x} ${y - 4}l1 3 3 1-3 1-1 3-1-3-3-1 3-1z`} fill="#FFF7E6" />
+          ))}
+        </g>
+      )}
+      <ellipse cx="70" cy="150" rx="150" ry="58" fill={am ? "#C7D1A8" : "#7E8F6E"} />
+      <ellipse cx="290" cy="156" rx="140" ry="62" fill={am ? "#B8C496" : "#6F8060"} />
+      <g className="sway">{flower(54, 70, "#F7C8D3")}</g>
+      <g className="sway" style={{ animationDelay: ".6s" }}>{flower(106, 84, "#FFF7E6", 0.8)}</g>
+      <g className="sway" style={{ animationDelay: "1.1s" }}>{flower(236, 76, "#EFA9BA", 0.9)}</g>
+      {am && [[150, 50], [190, 70], [24, 40]].map(([x, y], k) => (
+        <path key={k} className="twinkle" style={{ animationDelay: `${k * 0.5}s` }} d={`M${x} ${y - 5}l1.3 3.7 3.7 1.3-3.7 1.3-1.3 3.7-1.3-3.7-3.7-1.3 3.7-1.3z`} fill="#FFFCF5" />
+      ))}
+    </svg>
   );
 }
 
