@@ -5,7 +5,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const body = await req.json();
   const data: any = {};
-  for (const k of ["group", "name", "note", "status"]) if (k in body) data[k] = body[k];
+  for (const k of ["scope", "group", "name", "note", "status", "openedAt"]) if (k in body) data[k] = body[k];
+  if ("paoMonths" in body) data.paoMonths = +body.paoMonths || 0;
   const product = await prisma.product.update({ where: { id }, data });
   return NextResponse.json(product);
 }

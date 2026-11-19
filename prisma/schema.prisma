@@ -28,6 +28,10 @@ model Product {
   note      String        @default("")
   status    ProductStatus @default(active)
   order     Int           @default(0)
+  /// Ngày mở nắp (YYYY-MM-DD), rỗng nếu chưa ghi
+  openedAt  String        @default("")
+  /// Hạn dùng sau khi mở (tháng), 0 = không theo dõi
+  paoMonths Int           @default(0)
   createdAt DateTime      @default(now())
   steps     Step[]
   checks    Check[]
@@ -94,6 +98,15 @@ model JournalEntry {
   dark      Int      @default(1)
   dry       Int      @default(1)
   sting     Int      @default(1)
+  note      String   @default("")
+  updatedAt DateTime @updatedAt
+}
+
+/// Cảm xúc trong ngày — 1 bản ghi mỗi ngày
+model MoodEntry {
+  date      String   @id // YYYY-MM-DD
+  mood      String // khoá cảm xúc, xem lib/moods.ts
+  skin      String   @default("") // các nhãn tình trạng da, cách nhau bằng dấu phẩy
   note      String   @default("")
   updatedAt DateTime @updatedAt
 }

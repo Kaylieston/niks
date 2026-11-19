@@ -45,9 +45,23 @@ Script `scripts/import-legacy.ts` nạp file đó vào database:
 npx tsx scripts/import-legacy.ts ./routine-backup.json
 ```
 
+## Cập nhật giao diện iPhone (11/2026)
+
+- Thanh tab dưới: **Hôm nay · Lịch trình · Tủ đồ · Cảm xúc**, nút + để thêm nhanh.
+- **Lịch trình**: xem minh hoạ từng bước theo thứ tự dùng, có hoạt ảnh và chồng "các lớp trên da"; nút ✎ để chỉnh lịch.
+- **Tủ đồ**: quản lý mọi sản phẩm (tìm, lọc theo mục / trạng thái, ngày mở nắp + hạn dùng).
+- **Cảm xúc**: ghi cảm xúc mỗi ngày, biểu đồ tròn theo tuần / tháng, lịch cảm xúc, kèm nhật ký da.
+- Icon app mới (mèo ngủ trên trăng).
+
+Bản này thêm bảng `MoodEntry` và hai cột `openedAt`, `paoMonths` cho `Product`. Trên Vercel, script `vercel-build`
+tự chạy `prisma db push` trước khi build nên database được cập nhật khi deploy (chỉ thêm, không mất dữ liệu cũ;
+nếu một thay đổi sau này có thể làm mất dữ liệu, build sẽ dừng lại thay vì tự xoá).
+
 ## Cấu trúc
 
-- `prisma/schema.prisma` — Product, RoutineDay/Section/Step, Check, JournalEntry, Setting, PushSubscription
+- `prisma/schema.prisma` — Product, RoutineDay/Section/Step, Check, JournalEntry, MoodEntry, Setting, PushSubscription
 - `app/api/*` — REST cho tủ sản phẩm, lịch, tick, nhật ký, cài đặt, push
-- `components/NiksApp.tsx` — toàn bộ giao diện (Hôm nay, lịch theo mục, tủ, nhật ký, cài đặt)
+- `components/NiksApp.tsx` — khung app, thanh tab, màn Hôm nay và cài đặt
+- `components/RoutineView.tsx`, `ShelfView.tsx`, `MoodView.tsx` — các tab còn lại
+- `components/art.tsx`, `lib/moods.ts` — hình minh hoạ sản phẩm và blob cảm xúc
 - `public/sw.js` — cache vỏ app cho chế độ offline + nhận push
