@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "vercel-build": "prisma generate && prisma db push --skip-generate && next build",
     "start": "next start",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
@@ -12,7 +13,9 @@
     "db:studio": "prisma studio",
     "keys": "web-push generate-vapid-keys"
   },
-  "prisma": { "seed": "tsx prisma/seed.ts" },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "dependencies": {
     "@prisma/client": "^6.2.1",
     "next": "^15.1.6",

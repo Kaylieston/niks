@@ -53,8 +53,9 @@ npx tsx scripts/import-legacy.ts ./routine-backup.json
 - **Cảm xúc**: ghi cảm xúc mỗi ngày, biểu đồ tròn theo tuần / tháng, lịch cảm xúc, kèm nhật ký da.
 - Icon app mới (mèo ngủ trên trăng).
 
-Bản này thêm bảng `MoodEntry` và hai cột `openedAt`, `paoMonths` cho `Product`. Sau khi deploy, chạy một lần
-`npx prisma db push` với `DATABASE_URL` production (chỉ thêm, không mất dữ liệu cũ).
+Bản này thêm bảng `MoodEntry` và hai cột `openedAt`, `paoMonths` cho `Product`. Trên Vercel, script `vercel-build`
+tự chạy `prisma db push` trước khi build nên database được cập nhật khi deploy (chỉ thêm, không mất dữ liệu cũ;
+nếu một thay đổi sau này có thể làm mất dữ liệu, build sẽ dừng lại thay vì tự xoá).
 
 ## Cấu trúc
 
