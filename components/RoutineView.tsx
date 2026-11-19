@@ -227,11 +227,11 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
 
 /* ================= SƠ ĐỒ CẢ NGÀY ================= */
 type FlowItem =
-  | { t: "sec"; key: string; label: string; x: number; y: number; w: number; h: number }
-  | { t: "step"; key: string; i: number; n: number; p?: Product; note: string; x: number; y: number; w: number; h: number }
-  | { t: "end"; x: number; y: number; w: number; h: number };
+  | { t: "sec"; key: string; label: string; x: number; y: number; w: number; h: number; row: number }
+  | { t: "step"; key: string; i: number; n: number; p?: Product; x: number; y: number; w: number; h: number; row: number };
 
-const FW = 340, NODE_W = 164, NODE_H = 72, PILL_W = 176, PILL_H = 36, GAP = 30;
+/** Lưới gọn: 3 ô mỗi hàng, đi theo hình chữ S trong từng buổi để cả ngày vừa một màn hình */
+const FW = 340, COLS = 3, TILE_W = 96, TILE_H = 74, GAP_X = (FW - COLS * TILE_W) / (COLS - 1), GAP_Y = 14, PILL_W = 150, PILL_H = 26;
 
 /** Ngắt tên dài thành tối đa `max` dòng, mỗi dòng ~`len` ký tự */
 function wrap(text: string, len: number, max: number) {
@@ -241,7 +241,8 @@ function wrap(text: string, len: number, max: number) {
     if ((cur + " " + w).trim().length > len && cur) { lines.push(cur); cur = w; } else cur = (cur + " " + w).trim();
   }
   if (cur) lines.push(cur);
-  if (lines.length > max) { lines.length = max; lines[max - 1] = lines[max - 1].slice(0, len - 1) + "…"; }
+  for (let k = 0; k < lines.length; k++) if (lines[k].length > len) lines[k] = lines[k].slice(0, len - 1) + "…";
+  if (lines.length > max) { lines.length = max; lines[max - 1] = lines[max - 1].slice(0, len - 1).replace(/\s*$/, "") + "…"; }
   return lines;
 }
 
@@ -250,66 +251,82 @@ function FlowChart({ scope, day, byId, isDone, onPick }: {
   isDone: (sec: string, pid: string) => boolean; onPick: (sec: string, i: number) => void;
 }) {
   const [run, setRun] = useState(0);
+  const box = useRef<HTMLDivElement>(null);
+  // đưa cả sơ đồ vào khung nhìn khi mở
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY - 12;
+    window.scrollTo({ top: Math.max(0, top - Math.max(0, window.innerHeight - 100 - el.offsetHeight - 12)), behavior: "smooth" });
+  }, [scope, day]);
   const { items, H, path, links } = useMemo(() => {
     const items: FlowItem[] = [];
-    let y = 8, n = 0;
+    let y = 2, row = 0;
     const order = Object.keys(SECTION_META[scope]);
     const secs = [...(day?.sections ?? [])].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key)).filter((s) => s.steps.length);
-    for (const sec of secs) {
+    secs.forEach((sec, si) => {
       const meta = SECTION_META[scope][sec.key];
-      items.push({ t: "sec", key: sec.key, label: `${meta?.tone === "pm" ? "☾" : "☀︎"} ${meta?.title ?? sec.key} · ${sec.steps.length} bước`, x: (FW - PILL_W) / 2, y, w: PILL_W, h: PILL_H });
-      y += PILL_H + GAP;
+      if (si > 0) y += 6;
+      items.push({ t: "sec", key: sec.key, row: row++, label: `${meta?.tone === "pm" ? "☾" : "☀︎"} ${meta?.title ?? sec.key} · ${sec.steps.length} bước`, x: (FW - PILL_W) / 2, y, w: PILL_W, h: PILL_H });
+      y += PILL_H + 14;
       sec.steps.forEach((st, i) => {
-        const left = n % 2 === 0;
-        items.push({ t: "step", key: sec.key, i, n: i + 1, p: byId[st.p], note: st.n, x: left ? 4 : FW - NODE_W - 4, y, w: NODE_W, h: NODE_H });
-        y += NODE_H + GAP; n++;
+        const r = Math.floor(i / COLS), c = i % COLS;
+        const col = r % 2 === 0 ? c : COLS - 1 - c; // chữ S: hàng lẻ đi ngược lại
+        items.push({ t: "step", key: sec.key, i, n: i + 1, p: byId[st.p], row: row + r, x: col * (TILE_W + GAP_X), y: y + r * (TILE_H + GAP_Y), w: TILE_W, h: TILE_H });
       });
-    }
-    if (items.length) { items.push({ t: "end", x: (FW - 120) / 2, y, w: 120, h: PILL_H }); y += PILL_H + 8; }
-    const cx = (it: FlowItem) => it.x + it.w / 2;
-    const links: string[] = [];
-    let path = "";
-    items.forEach((it, k) => {
-      if (k === 0) { path = `M${cx(it)} ${it.y + it.h / 2}`; return; }
-      const a = items[k - 1], x1 = cx(a), y1 = a.y + a.h, x2 = cx(it), y2 = it.y;
-      const c = `C${x1} ${y1 + GAP * 0.8} ${x2} ${y2 - GAP * 0.8} ${x2} ${y2}`;
-      links.push(`M${x1} ${y1} ${c}`);
-      path += ` L${x1} ${y1} ${c}`;
+      const rows = Math.ceil(sec.steps.length / COLS);
+      row += rows;
+      y += rows * (TILE_H + GAP_Y) - GAP_Y + 12;
     });
-    if (items.length) { const last = items[items.length - 1]; path += ` L${cx(last)} ${last.y + last.h / 2}`; }
+    const cx = (it: FlowItem) => it.x + it.w / 2, cy = (it: FlowItem) => it.y + it.h / 2;
+    const links: string[] = [];
+    let path = items.length ? `M${cx(items[0])} ${cy(items[0])}` : "";
+    items.forEach((b, k) => {
+      if (k === 0) return;
+      const a = items[k - 1];
+      let d: string;
+      if (a.row === b.row) {
+        // cùng hàng: mũi tên ngang
+        const right = b.x > a.x;
+        const x1 = right ? a.x + a.w : a.x, x2 = right ? b.x : b.x + b.w;
+        d = `M${x1} ${cy(a)} L${x2} ${cy(b)}`;
+      } else {
+        // xuống hàng: đường cong từ đáy ô trên tới đỉnh ô dưới
+        const x1 = cx(a), y1 = a.y + a.h, x2 = cx(b), y2 = b.y, m = (y2 - y1) * 0.9;
+        d = `M${x1} ${y1} C${x1} ${y1 + m} ${x2} ${y2 - m} ${x2} ${y2}`;
+      }
+      links.push(d);
+      path += ` L${d.slice(1)} L${cx(b)} ${cy(b)}`;
+    });
     return { items, H: y, path, links };
   }, [scope, day, byId]);
 
   if (!items.length) return <div className="card empty">Ngày này chưa có bước nào. Bấm ✎ để thêm.</div>;
-  const STEP_S = 0.32;
-  const total = items.length * STEP_S + 0.6;
+  const STEP_S = 0.18;
+  const total = items.length * STEP_S + 0.5;
 
   return (
-    <div className="card flow">
-      <div className="row-between">
-        <div><div className="label">Sơ đồ {SCOPE_LABEL[scope].toLowerCase()}</div><div className="h3">Dùng theo mũi tên</div></div>
-        <button className="pill soft sm" onClick={() => setRun((r) => r + 1)}>↻ Chạy lại</button>
-      </div>
-      <svg key={run} className="flowsvg" viewBox={`0 0 ${FW} ${H}`} role="img" aria-label="Sơ đồ thứ tự dùng sản phẩm trong ngày">
+    <div className="card flow" ref={box}>
+      <button className="replay" aria-label="Chạy lại sơ đồ" onClick={() => setRun((r) => r + 1)}>↻</button>
+      <svg key={run} className="flowsvg" viewBox={`0 -2 ${FW} ${H + 2}`} role="img" aria-label="Sơ đồ thứ tự dùng sản phẩm trong ngày">
         <defs>
-          <marker id="fa" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
             <path d="M0 0L10 5L0 10z" fill="#A9B7C6" />
           </marker>
         </defs>
         {links.map((d, k) => (
           <g key={k}>
             <path d={d} className="flink-bg" />
-            <path d={d} className="flink" pathLength={1} markerEnd="url(#fa)" style={{ animationDelay: `${(k + 0.6) * STEP_S}s` }} />
+            <path d={d} className="flink" pathLength={1} markerEnd="url(#fa)" style={{ animationDelay: `${(k + 0.7) * STEP_S}s` }} />
           </g>
         ))}
         {items.map((it, k) => {
           const delay = { animationDelay: `${k * STEP_S}s` };
-          if (it.t === "sec" || it.t === "end") {
-            const end = it.t === "end";
+          if (it.t === "sec") {
             return (
               <g key={k} className="fnode" style={delay}>
-                <rect x={it.x} y={it.y} width={it.w} height={it.h} rx={it.h / 2} fill={end ? "#A8B58A" : "#2D3A47"} />
-                <text x={it.x + it.w / 2} y={it.y + it.h / 2 + 4.5} textAnchor="middle" className="ftext pill-t">{end ? "✓ Xong rồi!" : it.label}</text>
+                <rect x={it.x} y={it.y} width={it.w} height={it.h} rx={it.h / 2} fill="#2D3A47" />
+                <text x={it.x + it.w / 2} y={it.y + it.h / 2 + 4} textAnchor="middle" className="ftext pill-t">{it.label}</text>
               </g>
             );
           }
@@ -320,24 +337,24 @@ function FlowChart({ scope, day, byId, isDone, onPick }: {
             <g key={k} className="fnode step" style={delay} role="button" tabIndex={0}
               aria-label={`Bước ${it.n}: ${it.p?.name ?? ""}`}
               onClick={() => onPick(it.key, it.i)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onPick(it.key, it.i); }}>
-              <rect x={it.x} y={it.y} width={it.w} height={it.h} rx="18" fill="#FFFCF5" stroke={done ? "#A8B58A" : "#EADFC8"} strokeWidth={done ? 2.5 : 1.5} />
-              <rect x={it.x + 7} y={it.y + 7} width="46" height={it.h - 14} rx="13" fill={look.bg} />
-              <g transform={`translate(${it.x + 12} ${it.y + 11})`}><g className="fart"><ProductArt group={it.p?.group} size={50} /></g></g>
-              <circle cx={it.x + 9} cy={it.y + 9} r="10" fill={done ? "#A8B58A" : "#2D3A47"} />
-              <text x={it.x + 9} y={it.y + 13} textAnchor="middle" className="ftext num-t">{done ? "✓" : it.n}</text>
+              <title>{it.p?.name}</title>
+              <rect x={it.x} y={it.y} width={it.w} height={it.h} rx="16" fill="#FFFCF5" stroke={done ? "#A8B58A" : "#EFE5D0"} strokeWidth={done ? 2.5 : 1.5} />
+              <rect x={it.x + 5} y={it.y + 5} width={it.w - 10} height="38" rx="12" fill={look.bg} />
+              <g transform={`translate(${it.x + it.w / 2 - 12.4} ${it.y + 7})`}><g className="fart"><ProductArt group={it.p?.group} size={34} /></g></g>
+              <circle cx={it.x + 8} cy={it.y + 8} r="9" fill={done ? "#A8B58A" : "#2D3A47"} />
+              <text x={it.x + 8} y={it.y + 11.5} textAnchor="middle" className="ftext num-t">{done ? "✓" : it.n}</text>
               {name.map((ln, j) => (
-                <text key={j} x={it.x + 60} y={it.y + 24 + j * 14} className="ftext name-t">{ln}</text>
+                <text key={j} x={it.x + it.w / 2} y={it.y + 55 + j * 12.5 + (name.length === 1 ? 6 : 0)} textAnchor="middle" className="ftext name-t">{ln}</text>
               ))}
-              <text x={it.x + 60} y={it.y + 24 + name.length * 14 + 2} className="ftext meta-t">{(it.p?.group ?? "").slice(0, 20)}</text>
             </g>
           );
         })}
-        <circle r="5.5" className="fdot" opacity="0">
+        <circle r="5" className="fdot" opacity="0">
           <set attributeName="opacity" to="1" begin={`${total}s`} />
-          <animateMotion dur={`${Math.max(4, items.length * 0.9)}s`} begin={`${total}s`} repeatCount="indefinite" path={path} rotate="auto" />
+          <animateMotion dur={`${Math.max(4, items.length * 0.7)}s`} begin={`${total}s`} repeatCount="indefinite" path={path} />
         </circle>
       </svg>
-      <div className="small">Bấm vào một bước để xem minh hoạ cách dùng.</div>
+      <div className="small">Đi theo mũi tên · bấm vào một bước để xem cách dùng.</div>
     </div>
   );
 }
