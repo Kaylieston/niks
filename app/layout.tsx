@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "Lịch chăm sóc da mặt, tóc và cơ thể theo chu kỳ 2 tuần, kèm nhật ký da.",
   manifest: "/manifest.webmanifest",
   applicationName: "Niks",
-  appleWebApp: { capable: true, title: "Niks", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Niks", statusBarStyle: "black-translucent" },
   icons: {
     icon: [
       { url: "/favicon.png", sizes: "32x32", type: "image/png" },
