@@ -18,6 +18,7 @@ import ProgressView from "./ProgressView";
 const USER_NAME = "Kaylie";
 
 type Tab = "today" | "routine" | "progress" | "shelf" | "mood";
+const TABS: Tab[] = ["today", "routine", "progress", "shelf", "mood"];
 export type RoutineTarget = { scope: Scope; section: string; nonce: number };
 
 export default function NiksApp() {
@@ -52,6 +53,27 @@ function App() {
   }, [toastMsg]);
   useEffect(() => { document.body.dataset.tab = tab; }, [tab]);
 
+  // Thanh tab ẩn khi cuộn xuống, hiện lại khi cuộn lên (hoặc khi gần đầu / cuối trang)
+  const [navHidden, setNavHidden] = useState(false);
+  useEffect(() => {
+    let lastY = window.scrollY, ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = window.scrollY;
+        const atBottom = window.innerHeight + y >= document.documentElement.scrollHeight - 4;
+        if (y < 40 || atBottom) setNavHidden(false);
+        else if (y > lastY + 6) setNavHidden(true);
+        else if (y < lastY - 6) setNavHidden(false);
+        if (Math.abs(y - lastY) > 6) lastY = y;
+        ticking = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   /** Gửi thay đổi lên server rồi tải lại state. */
   const mutate: Mutate = useCallback(async (label, fn) => {
     setBusy(label);
@@ -60,7 +82,7 @@ function App() {
     finally { setBusy(null); }
   }, [refresh]);
 
-  const go = (t: Tab) => { setTab(t); window.scrollTo({ top: 0 }); };
+  const go = (t: Tab) => { setTab(t); setNavHidden(false); window.scrollTo({ top: 0 }); };
 
   if (error && !state) return <div className="boot"><img src="/icons/icon-192.png" alt="" /><p>{tr("Không tải được dữ liệu", "Couldn't load your data")}: {error}</p></div>;
   if (!state) return <div className="boot"><img src="/icons/icon-192.png" alt="" className="pulse" /><p>{tr("Đang tải Niks…", "Loading Niks…")}</p></div>;
@@ -80,7 +102,9 @@ function App() {
         {tab === "mood" && <MoodView state={state} mutate={mutate} preselect={moodPick} clearPreselect={() => setMoodPick(null)} toast={setToastMsg} goProgress={() => go("progress")} />}
       </main>
 
-      <nav className="tabbar" aria-label={tr("Điều hướng chính", "Main navigation")}>
+      <nav className={`tabbar ${navHidden ? "hide" : ""}`} aria-label={tr("Điều hướng chính", "Main navigation")}
+        style={{ ["--i" as any]: TABS.indexOf(tab) }}>
+        <span className="tab-blob" aria-hidden="true" />
         <TabBtn on={tab === "today"} label={tr("Hôm nay", "Today")} icon="home" onClick={() => go("today")} />
         <TabBtn on={tab === "routine"} label={tr("Lịch trình", "Routine")} icon="routine" onClick={() => go("routine")} />
         <TabBtn on={tab === "progress"} label={tr("Tiến độ", "Progress")} icon="progress" onClick={() => go("progress")} />
