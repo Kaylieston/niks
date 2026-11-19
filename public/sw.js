@@ -1,6 +1,6 @@
-/* Niks service worker — cache vỏ app + nhận push */
-const CACHE = "niks-v2";
-const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
+/* Niks service worker — cache vỏ app để mở được khi offline */
+const CACHE = "niks-v3";
+const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/bg/picnic.jpg"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -36,31 +36,6 @@ self.addEventListener("fetch", (e) => {
         .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); return res; })
         .catch(() => hit || caches.match("/"));
       return hit || net;
-    })
-  );
-});
-
-self.addEventListener("push", (e) => {
-  let data = { title: "Niks 🌸", body: "Tới giờ chăm da rồi.", url: "/" };
-  try { data = { ...data, ...e.data.json() }; } catch (_) {}
-  e.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      data: { url: data.url },
-      tag: "niks-reminder",
-    })
-  );
-});
-
-self.addEventListener("notificationclick", (e) => {
-  e.notification.close();
-  const url = e.notification.data?.url || "/";
-  e.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
-      for (const c of list) if (c.url.includes(location.origin) && "focus" in c) return c.focus();
-      return self.clients.openWindow(url);
     })
   );
 });

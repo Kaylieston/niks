@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 export async function PUT(req: NextRequest) {
   const body = await req.json();
   const entries = Object.entries(body).filter(([k]) =>
-    ["cycleStart", "reminderTime", "reminderEnabled"].includes(k)
+    ["cycleStart"].includes(k)
   );
   for (const [key, value] of entries) {
     await prisma.setting.upsert({

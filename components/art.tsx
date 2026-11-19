@@ -1,6 +1,7 @@
 import React from "react";
 import { GROUP_ICON } from "@/lib/defaults";
 import { MOOD_BY_KEY } from "@/lib/moods";
+import { SKIN_BY_KEY } from "@/lib/skin";
 
 const INK = "#2D3A47";
 
@@ -77,6 +78,16 @@ export function MoodBlob({ mood, size = 48, className }: { mood: string; size?: 
   );
 }
 
+/** Gương mặt minh hoạ tình trạng da */
+export function SkinFace({ skin, size = 48, className }: { skin: string; size?: number; className?: string }) {
+  const m = SKIN_BY_KEY[skin];
+  if (!m) return null;
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 64 64" aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: m.svg }} />
+  );
+}
+
 /** Nét vẽ icon đơn giản cho thanh tab & nút */
 export const Glyph = {
   home: <path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z" />,
@@ -92,6 +103,10 @@ export const Glyph = {
   search: <><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></>,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
+  progress: <><path d="M4 20V10M10 20V5M16 20v-7M22 20H2" /><path d="M14.5 4.5l2 2 3.5-3.5" /></>,
+  globe: <><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.6 2.4 3.6 5.4 3.6 8.5s-1 6.1-3.6 8.5c-2.6-2.4-3.6-5.4-3.6-8.5s1-6.1 3.6-8.5z" /></>,
+  grip: <path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" />,
+  trash: <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" />,
 };
 export function G({ name, size = 22, width = 2 }: { name: keyof typeof Glyph; size?: number; width?: number }) {
   return (
