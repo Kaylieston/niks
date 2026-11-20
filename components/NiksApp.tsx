@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { TODAY_GROUPS, type Scope } from "@/lib/defaults";
+import type { Scope } from "@/lib/defaults";
 import { dateKey, dayIndex, parseKey, weekOf } from "@/lib/dates";
 import { streak as calcStreak } from "@/lib/habits";
 import { LangProvider, useI18n } from "@/lib/i18n";
 import { QUICK_MOODS, moodName } from "@/lib/moods";
-import type { Mutate, State, Step } from "@/lib/types";
-import { G, MoodBlob, ProductArt, productLook } from "./art";
+import type { Mutate, State } from "@/lib/types";
+import { G, MoodBlob } from "./art";
 import { Ring, Sheet, api } from "./ui";
 import RoutineView from "./RoutineView";
 import ShelfView, { paoInfo } from "./ShelfView";
@@ -124,7 +124,7 @@ function App() {
       {tab === "progress" ? <div className="pbg" aria-hidden="true" /> : <SkyBackdrop phase={sky.phase} />}
       <main className="views">
         {tab === "today" && (
-          <TodayView state={state} setState={setState} mutate={mutate} openSettings={() => setSettings(true)} openQuiz={() => setQuiz(true)} celebrate={celebrate} party={!!party}
+          <TodayView state={state} mutate={mutate} openSettings={() => setSettings(true)} openQuiz={() => setQuiz(true)} party={!!party}
             startRoutine={(scope, section) => { setRoutineTarget({ scope, section, nonce: Date.now() }); go("routine"); }}
             pickMood={(k) => { setMoodPick(k); go("mood"); }} goShelf={() => go("shelf")} goProgress={() => go("progress")} />
         )}
@@ -175,8 +175,8 @@ function TabBtn({ on, label, icon, onClick }: { on: boolean; label: string; icon
 }
 
 /* ================= HÔM NAY ================= */
-function TodayView({ state, setState, mutate, openSettings, openQuiz, celebrate, party, startRoutine, pickMood, goShelf, goProgress }: {
-  state: State; setState: (s: State) => void; mutate: Mutate; openSettings: () => void; openQuiz: () => void; celebrate: () => void; party: boolean;
+function TodayView({ state, mutate, openSettings, openQuiz, party, startRoutine, pickMood, goShelf, goProgress }: {
+  state: State; mutate: Mutate; openSettings: () => void; openQuiz: () => void; party: boolean;
   startRoutine: (scope: Scope, section: string) => void; pickMood: (k: string) => void; goShelf: () => void; goProgress: () => void;
 }) {
   const { tr, L, lang } = useI18n();
@@ -204,21 +204,6 @@ function TodayView({ state, setState, mutate, openSettings, openQuiz, celebrate,
   const expiring = state.products.filter((p) => p.status === "active" && paoInfo(p)?.soon);
   const wish = state.products.filter((p) => p.status === "wish");
 
-  const toggle = (scope: Scope, key: string, pid: string, done: boolean) => {
-    const checks = { ...state.checks, [dk]: { ...(state.checks[dk] ?? {}) } };
-    if (done) checks[dk][`${scope}:${key}:${pid}`] = true;
-    else delete checks[dk][`${scope}:${key}:${pid}`];
-    setState({ ...state, checks });
-    // xong cả nhóm (sáng / tối / tóc) → ăn mừng
-    const grp = TODAY_GROUPS.find((g) => g.parts.some(([s, k]) => s === scope && k === key));
-    const all = grp?.parts.flatMap(([s, k]) => (state.routines[s][wk]?.[di]?.sections.find((x) => x.key === k)?.steps ?? []).map((st) => `${s}:${k}:${st.p}`)) ?? [];
-    if (done && all.length && all.every((id) => checks[dk][id])) celebrate(); else haptic(done ? "medium" : "light");
-    fetch("/api/checks", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: dk, scope, sectionKey: key, productId: pid, done }),
-    }).catch(() => {});
-  };
-  const byId = useMemo(() => Object.fromEntries(state.products.map((p) => [p.id, p])), [state.products]);
 
   return (
     <section className="view">
@@ -275,49 +260,6 @@ function TodayView({ state, setState, mutate, openSettings, openQuiz, celebrate,
       </div>
 
       <ProfileCard state={state} openQuiz={openQuiz} />
-
-      {TODAY_GROUPS.map((g, gi) => {
-        const rows: { scope: Scope; key: string; step: Step }[] = [];
-        for (const [scope, key] of g.parts) {
-          const sec = state.routines[scope][wk]?.[di]?.sections.find((s) => s.key === key);
-          for (const step of sec?.steps ?? []) rows.push({ scope, key, step });
-        }
-        if (!rows.length) return null;
-        const done = rows.filter((r) => state.checks[dk]?.[`${r.scope}:${r.key}:${r.step.p}`]).length;
-        const [s0, k0] = g.parts[0];
-        return (
-          <div className={`card group ${g.tone}`} key={g.title}>
-            <div className="group-head">
-              <div className="grow"><div className="h3">{L.todayGroups[gi][0]}</div><div className="small">{L.todayGroups[gi][1]}</div></div>
-              <span className="count">{done}/{rows.length}</span>
-              <button className="pill soft sm" onClick={() => startRoutine(s0, k0)}>{tr("Xem minh hoạ", "Walkthrough")}</button>
-            </div>
-            <div className="bar"><i style={{ width: `${Math.round((done / rows.length) * 100)}%` }} /></div>
-            <ul className="checklist">
-              {rows.map(({ scope, key, step }) => {
-                const on = !!state.checks[dk]?.[`${scope}:${key}:${step.p}`];
-                const p = byId[step.p];
-                return (
-                  <li key={`${scope}-${key}-${step.p}`}>
-                    <label className={`check-row ${on ? "done" : ""}`}>
-                      <input type="checkbox" checked={on} onChange={(e) => toggle(scope, key, step.p, e.target.checked)} />
-                      <span className="thumb" style={{ background: productLook(p?.group).bg }}><ProductArt group={p?.group} size={34} /></span>
-                      <span className="info">
-                        <span className="nm">{p?.name ?? tr("(đã xoá)", "(deleted)")}</span>
-                        <span className="meta">
-                          {L.scope[scope]}{step.n ? ` · ${step.n}` : ""}
-                          {p && p.status !== "active" && <span className={`status s-${p.status}`}>{L.status[p.status]}</span>}
-                        </span>
-                      </span>
-                      <span className="tick"><G name="check" size={14} width={3.5} /></span>
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        );
-      })}
 
       <p className="foot">{tr("Niks · điều chỉnh theo phản ứng thực tế của da bạn nhé.", "Niks · adjust to how your skin actually responds.")}</p>
     </section>
