@@ -44,7 +44,21 @@ function App() {
 
   useEffect(() => { refresh().catch((e) => setError(e.message)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+    if (!("serviceWorker" in navigator)) return;
+    // Có bản mới: service worker mới tự kích hoạt, tải lại trang một lần để dùng ngay
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    const onChange = () => { if (hadController && !reloaded) { reloaded = true; window.location.reload(); } };
+    navigator.serviceWorker.addEventListener("controllerchange", onChange);
+    let reg: ServiceWorkerRegistration | undefined;
+    navigator.serviceWorker.register("/sw.js").then((r) => { reg = r; r.update().catch(() => {}); }).catch(() => {});
+    // Mở lại app từ nền (iPhone giữ app trong bộ nhớ) cũng kiểm tra bản mới
+    const onVisible = () => { if (document.visibilityState === "visible") reg?.update().catch(() => {}); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      navigator.serviceWorker.removeEventListener("controllerchange", onChange);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
   useEffect(() => {
     if (!toastMsg) return;

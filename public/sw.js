@@ -1,5 +1,5 @@
-/* Niks service worker — cache vỏ app để mở được khi offline */
-const CACHE = "niks-v3";
+/* Niks service worker — mở được khi offline, nhưng luôn ưu tiên bản mới nhất khi có mạng */
+const CACHE = "niks-v4";
 const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/bg/picnic.jpg"];
 
 self.addEventListener("install", (e) => {
@@ -13,28 +13,36 @@ self.addEventListener("activate", (e) => {
   );
 });
 
+const save = (req, res) => {
+  if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+  return res;
+};
+
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
 
-  // Dữ liệu: ưu tiên mạng, rớt mạng thì lấy bản cache gần nhất (app vẫn mở được offline)
-  if (url.pathname.startsWith("/api/")) {
+  // Trang HTML và dữ liệu: lấy từ mạng trước để luôn thấy bản mới; rớt mạng mới dùng bản đã lưu
+  if (req.mode === "navigate" || url.pathname.startsWith("/api/")) {
     e.respondWith(
-      fetch(req)
-        .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); return res; })
-        .catch(() => caches.match(req))
+      fetch(req).then((res) => save(req, res))
+        .catch(() => caches.match(req).then((hit) => hit || caches.match("/")))
     );
     return;
   }
 
-  // Vỏ app: lấy cache trước cho nhanh, đồng thời cập nhật nền
+  // File build có mã băm (không bao giờ đổi nội dung): lấy cache trước cho nhanh
+  if (url.pathname.startsWith("/_next/static/")) {
+    e.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => save(req, res))));
+    return;
+  }
+
+  // Ảnh, icon, manifest: dùng bản đã lưu ngay, đồng thời cập nhật nền
   e.respondWith(
     caches.match(req).then((hit) => {
-      const net = fetch(req)
-        .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); return res; })
-        .catch(() => hit || caches.match("/"));
+      const net = fetch(req).then((res) => save(req, res)).catch(() => hit);
       return hit || net;
     })
   );
