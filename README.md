@@ -59,9 +59,27 @@ nếu một thay đổi sau này có thể làm mất dữ liệu, build sẽ d�
 - **Tủ đồ**: form thêm sản phẩm chọn trạng thái, mục và loại bằng nút; "Muốn mua" ẩn ngày mở nắp và hạn dùng.
 - Cài đặt (bánh răng ở Hôm nay): chọn **Tiếng Việt / English** (lưu trên từng thiết bị) và chu kỳ 2 tuần.
 
+## Gợi ý thông minh & giao diện sống động (11/2026)
+
+- **Hồ sơ da** (Hôm nay hoặc Cài đặt): 3 câu hỏi về kiểu da, vấn đề và những gì da dễ phản ứng. Lưu ở `Setting.skinProfile`,
+  dùng để gợi ý hoạt chất nên ưu tiên, cảnh báo khi đang dùng thứ mình nhạy cảm, và vài mẹo riêng (`lib/profile.ts`).
+- **Tối nay dùng gì?** (Hôm nay): chạm tình trạng da hôm nay, Niks chọn sản phẩm trong tủ đồ theo thứ tự dùng.
+  Da đỏ / châm chích / bong → bỏ retinoid, acid, vitamin C, BPO, tẩy da chết và ưu tiên đồ làm dịu (`lib/tonight.ts`).
+- **Kiểm tra xung đột hoạt chất**: khi chỉnh lịch và khi xem routine, cảnh báo các cặp như retinoid + AHA/BHA,
+  vitamin C + benzoyl peroxide… Hoạt chất được tự nhận từ tên sản phẩm, sửa được trong form sản phẩm
+  (cột mới `Product.ingredients`, xem `lib/ingredients.ts`).
+- **Tiến độ**: khu vườn da (mỗi ngày ghi da hoặc cảm xúc là một cây), "Niks để ý thấy" tìm mối liên hệ trong nhật ký
+  (`lib/insights.ts`), và **ảnh tiến triển** so sánh bằng thanh trượt hoặc cạnh nhau. Ảnh chỉ lưu trong IndexedDB
+  của máy (`lib/photos.ts`), không tải lên server.
+- **Mèo Niks** ở Hôm nay đổi trạng thái theo chuỗi ngày: vui khi xong routine, buồn ngủ sau 22h, cổ vũ ở các mốc 3, 7, 14, 30… ngày.
+- **Nền theo giờ**: bình minh buổi sáng, kem ban ngày, đầm nước đầy sao buổi tối (chọn cố định trong Cài đặt nếu muốn).
+- **Rung khi chạm** (`lib/haptics.ts`): Android dùng `navigator.vibrate`. Safari trên iPhone không có API rung,
+  nên app bấm hộ một công tắc `<input switch>` ẩn, iOS 18 trở lên sẽ rung nhẹ; iOS cũ hơn thì không rung.
+  Thẻ nảy kiểu lò xo khi mở tab và khi chạm.
+
 ## Cấu trúc
 
-- `prisma/schema.prisma` — Product, RoutineDay/Section/Step, Check, SkinLog, MoodEntry, Setting (+ JournalEntry, PushSubscription cũ)
+- `prisma/schema.prisma` — Product (+ ingredients), RoutineDay/Section/Step, Check, SkinLog, MoodEntry, Setting (+ JournalEntry, PushSubscription cũ)
 - `app/api/*` — REST cho tủ sản phẩm, lịch, tick, tình trạng da, cảm xúc, cài đặt
 - `components/NiksApp.tsx` — khung app, thanh tab, màn Hôm nay và cài đặt
 - `components/RoutineView.tsx`, `ProgressView.tsx`, `ShelfView.tsx`, `MoodView.tsx`, `Skin.tsx` — các tab còn lại

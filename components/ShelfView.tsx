@@ -7,6 +7,8 @@ import { parseKey } from "@/lib/dates";
 import type { Mutate, Product, State } from "@/lib/types";
 import { G, ProductArt, productLook } from "./art";
 import { Sheet, api } from "./ui";
+import { IngredientPicker } from "./Smart";
+import { ING_BY_KEY, ingName, ingredientsOf } from "@/lib/ingredients";
 
 const SCOPES: Scope[] = ["face", "hair", "body"];
 const PAO_OPTIONS = [0, 3, 6, 12, 18, 24];
@@ -129,7 +131,7 @@ export default function ShelfView({ state, mutate, toast }: { state: State; muta
 function ProductDetail({ p, uses, mutate, onEdit, onDeleted }: {
   p: Product; uses: number; mutate: Mutate; onEdit: () => void; onDeleted: () => void;
 }) {
-  const { tr, L } = useI18n();
+  const { tr, L, lang } = useI18n();
   const [confirmDel, setConfirmDel] = useState(false);
   const pao = paoInfo(p);
   const look = productLook(p.group);
@@ -150,6 +152,9 @@ function ProductDetail({ p, uses, mutate, onEdit, onDeleted }: {
           ))}
         </div>
       </div>
+      {p.scope === "face" && ingredientsOf(p).length > 0 && (
+        <div className="ing-row">{ingredientsOf(p).map((k) => <span key={k} className="ing-tag" style={{ ["--c" as any]: ING_BY_KEY[k].color }}>{ingName(k, lang)}</span>)}</div>
+      )}
       {p.note && <div className="card"><div className="label">{tr("Ghi chú", "Note")}</div><p className="note">{p.note}</p></div>}
       {p.status !== "wish" && (pao ? (
         <div className="card">
@@ -188,6 +193,7 @@ function ProductForm({ initial, mutate, onSaved }: { initial: Partial<Product>; 
     const body = {
       scope, group, name: f.name.trim(), note: f.note ?? "", status,
       openedAt: wish ? "" : f.openedAt ?? "", paoMonths: wish ? 0 : f.paoMonths ?? 0,
+      ingredients: scope === "face" ? f.ingredients ?? "" : "",
     };
     mutate(tr("tủ đồ", "shelf"), () => f.id ? api(`/api/products/${f.id}`, "PATCH", body) : api("/api/products", "POST", body))
       .then((ok) => ok && onSaved(!f.id));
@@ -237,6 +243,8 @@ function ProductForm({ initial, mutate, onSaved }: { initial: Partial<Product>; 
           </div>
         </div>
       )}
+
+      {scope === "face" && <IngredientPicker product={{ name: f.name ?? "", note: f.note ?? "", group }} value={f.ingredients ?? ""} onChange={(v) => setF({ ...f, ingredients: v })} />}
 
       <label className="field">{tr("Ghi chú", "Note")}
         <textarea id="pf-note" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder={tr("Cách dùng, lưu ý…", "How to use, tips…")} />

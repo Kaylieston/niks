@@ -32,6 +32,8 @@ model Product {
   openedAt  String        @default("")
   /// Hạn dùng sau khi mở (tháng), 0 = không theo dõi
   paoMonths Int           @default(0)
+  /// Hoạt chất chính, cách nhau bằng dấu phẩy (xem lib/ingredients.ts). Rỗng = tự nhận từ tên / ghi chú, "none" = không có
+  ingredients String      @default("")
   createdAt DateTime      @default(now())
   steps     Step[]
   checks    Check[]

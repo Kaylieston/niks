@@ -8,6 +8,7 @@ import { useI18n } from "@/lib/i18n";
 import type { State } from "@/lib/types";
 import { G, ProductArt, productLook } from "./art";
 import { SkinStats } from "./Skin";
+import { InsightsCard, ProgressPhotos, SkinGarden } from "./Growth";
 
 export type Period = "day" | "month" | "quarter";
 const SCOPES: Scope[] = ["face", "hair", "body"];
@@ -100,6 +101,12 @@ export default function ProgressView({ state }: { state: State }) {
         <div className="tile glass"><b>{done}</b><span>{tr("bước đã làm", "steps done")}</span></div>
         <div className="tile glass"><b>{streak}</b><span>{tr("ngày liên tiếp", "day streak")}</span></div>
       </div>
+
+      <SkinGarden state={state} />
+
+      <InsightsCard state={state} />
+
+      <ProgressPhotos />
 
       <div className="card glass stack-gap">
         <div className="row-between"><div className="h3">{tr("Theo từng mục", "By area")}</div></div>

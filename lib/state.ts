@@ -4,15 +4,15 @@ import type { Scope } from "./defaults";
 import { legacySkinKey } from "./skin";
 
 export type AppState = {
-  settings: { cycleStart: string };
-  products: { id: string; scope: Scope; group: string; name: string; note: string; status: string; openedAt: string; paoMonths: number }[];
+  settings: { cycleStart: string; skinProfile: any | null };
+  products: { id: string; scope: Scope; group: string; name: string; note: string; status: string; openedAt: string; paoMonths: number; ingredients: string }[];
   routines: Record<Scope, Record<"A" | "B", any[]>>;
   checks: Record<string, Record<string, boolean>>;
   moods: Record<string, { mood: string; note: string }>;
   skin: Record<string, { tags: string[]; note: string }>;
 };
 
-const DEFAULT_SETTINGS = { cycleStart: thisMonday() };
+const DEFAULT_SETTINGS = { cycleStart: thisMonday(), skinProfile: null };
 
 export async function loadState(): Promise<AppState> {
   const [settingRows, products, days, skinLogs, checks, moods] = await Promise.all([
@@ -28,7 +28,10 @@ export async function loadState(): Promise<AppState> {
   ]);
 
   const settings: any = { ...DEFAULT_SETTINGS };
-  for (const row of settingRows) if (row.key === "cycleStart") settings.cycleStart = row.value;
+  for (const row of settingRows) {
+    if (row.key === "cycleStart") settings.cycleStart = row.value;
+    if (row.key === "skinProfile") { try { settings.skinProfile = JSON.parse(row.value); } catch {} }
+  }
 
   const routines: any = { face: { A: [], B: [] }, hair: { A: [], B: [] }, body: { A: [], B: [] } };
   for (const d of days) {
@@ -61,7 +64,7 @@ export async function loadState(): Promise<AppState> {
     settings,
     products: products.map((p) => ({
       id: p.id, scope: p.scope as Scope, group: p.group, name: p.name, note: p.note, status: p.status,
-      openedAt: p.openedAt, paoMonths: p.paoMonths,
+      openedAt: p.openedAt, paoMonths: p.paoMonths, ingredients: p.ingredients,
     })),
     routines,
     checks: checkMap,

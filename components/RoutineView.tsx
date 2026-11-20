@@ -8,6 +8,9 @@ import type { Mutate, Product, State, Step } from "@/lib/types";
 import { G, ProductArt, productLook } from "./art";
 import { Sheet, api } from "./ui";
 import { SkinCheck } from "./Skin";
+import { ClashNotes } from "./Smart";
+import { haptic } from "@/lib/haptics";
+import { clashWith, ingName } from "@/lib/ingredients";
 import type { RoutineTarget } from "./NiksApp";
 
 const SCOPES: Scope[] = ["face", "hair", "body"];
@@ -15,8 +18,8 @@ const SCOPES: Scope[] = ["face", "hair", "body"];
 const RINSE = new Set(["micellar", "cleanser", "exfoliant", "water", "mask"]);
 const PLAY_MS = 2800;
 
-export default function RoutineView({ state, setState, mutate, target, toast }: {
-  state: State; setState: (s: State) => void; mutate: Mutate; target: RoutineTarget | null; toast: (m: string) => void;
+export default function RoutineView({ state, setState, mutate, target, toast, celebrate }: {
+  state: State; setState: (s: State) => void; mutate: Mutate; target: RoutineTarget | null; toast: (m: string) => void; celebrate: () => void;
 }) {
   const { tr, L } = useI18n();
   const today = new Date();
@@ -61,6 +64,8 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
     if (done) checks[date][`${scope}:${secKey}:${pid}`] = true;
     else delete checks[date][`${scope}:${secKey}:${pid}`];
     setState({ ...state, checks });
+    const allDone = done && steps.length > 0 && steps.every((s) => checks[date][`${scope}:${secKey}:${s.p}`]);
+    if (allDone) celebrate(); else haptic(done ? "medium" : "light");
     fetch("/api/checks", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ date, scope, sectionKey: secKey, productId: pid, done }),
@@ -195,7 +200,6 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
                 const was = isDone(curProd.id);
                 setDone(curProd.id, !was);
                 if (!was && cur < steps.length - 1) show(cur + 1);
-                if (!was && cur === steps.length - 1) toast(tr("Xong cả routine rồi!", "Routine complete!"));
               }}>{isDone(curProd.id) ? tr("Bỏ đánh dấu", "Undo") : tr("✓ Xong bước này", "✓ Done with this step")}</button>
             )}
           </div>
@@ -226,6 +230,8 @@ export default function RoutineView({ state, setState, mutate, target, toast }: 
           </ol>
         </>
       )}
+
+      {scope === "face" && <ClashNotes products={steps.map((s) => byId[s.p]).filter(Boolean)} am={secKey === "am"} />}
 
       <SkinCheck state={state} mutate={mutate} date={date} toast={toast} />
     </section>
@@ -452,6 +458,7 @@ function ScheduleEditor({ scope, setScope, initialWeek, initialDay, state, mutat
                 }}
               />
             )}
+            <ClashNotes products={sec.steps.map((st) => byId[st.p]).filter(Boolean)} am={sec.key === "am" && scope === "face"} />
             <button className="addstep" onClick={() => setPicker(secIdx)}>
               <G name="plus" size={18} width={2.5} />{tr("Thêm bước", "Add a step")}
             </button>
@@ -470,7 +477,11 @@ function ScheduleEditor({ scope, setScope, initialWeek, initialDay, state, mutat
             onPick={(p) => {
               const sec = current.sections[picker];
               setPicker(null);
-              putSection(picker, [...sec.steps, { p: p.id, n: p.note ?? "" }]).then((ok) => ok && toast(tr(`Đã thêm ${p.name}`, `Added ${p.name}`)));
+              const clash = clashWith(p, sec.steps.map((st) => byId[st.p]).filter(Boolean));
+              haptic(clash ? "warn" : "light");
+              putSection(picker, [...sec.steps, { p: p.id, n: p.note ?? "" }]).then((ok) => ok && toast(clash
+                ? tr(`Đã thêm ${p.name} · ⚠︎ xung đột với ${clash.a.id === p.id ? clash.b.name : clash.a.name}`, `Added ${p.name} · ⚠︎ clashes with ${clash.a.id === p.id ? clash.b.name : clash.a.name}`)
+                : tr(`Đã thêm ${p.name}`, `Added ${p.name}`)));
             }} />
         )}
       </Sheet>
@@ -591,9 +602,10 @@ function SwipeRow({ open, setOpen, actions, children }: {
 function ProductPicker({ scope, products, already, onPick }: {
   scope: Scope; products: Product[]; already: string[]; onPick: (p: Product) => void;
 }) {
-  const { tr, L } = useI18n();
+  const { tr, L, lang } = useI18n();
   const [q, setQ] = useState("");
   const [group, setGroup] = useState<string>("all");
+  const inSection = products.filter((p) => already.includes(p.id));
   const mine = products.filter((p) => p.scope === scope && p.status !== "empty");
   const groups = GROUPS[scope].filter((g) => mine.some((p) => p.group === g));
   const list = mine
@@ -619,6 +631,12 @@ function ProductPicker({ scope, products, already, onPick }: {
               <span className="info">
                 <span className="nm">{p.name}</span>
                 <span className="meta">{L.group(p.group)}{p.status !== "active" ? ` · ${L.status[p.status]}` : ""}{already.includes(p.id) ? ` · ${tr("đã có trong buổi này", "already in this routine")}` : ""}</span>
+                {(() => {
+                  const c = already.includes(p.id) ? null : clashWith(p, inSection);
+                  if (!c) return null;
+                  const other = c.a.id === p.id ? c.b : c.a;
+                  return <span className={`pick-clash ${c.rule.level}`}>⚠︎ {ingName(c.ia, lang)} + {ingName(c.ib, lang)} · {other.name}</span>;
+                })()}
               </span>
               <span className="plus"><G name="plus" size={18} width={2.6} /></span>
             </button>
