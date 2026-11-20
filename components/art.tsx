@@ -106,6 +106,7 @@ export const Glyph = {
   progress: <><path d="M4 20V10M10 20V5M16 20v-7M22 20H2" /><path d="M14.5 4.5l2 2 3.5-3.5" /></>,
   globe: <><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.6 2.4 3.6 5.4 3.6 8.5s-1 6.1-3.6 8.5c-2.6-2.4-3.6-5.4-3.6-8.5s1-6.1 3.6-8.5z" /></>,
   grip: <path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" />,
+  swap: <path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" />,
   trash: <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" />,
 };
 export function G({ name, size = 22, width = 2 }: { name: keyof typeof Glyph; size?: number; width?: number }) {

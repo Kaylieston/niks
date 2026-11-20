@@ -375,6 +375,7 @@ function ScheduleEditor({ scope, setScope, initialWeek, initialDay, state, mutat
   const [week, setWeek] = useState<"A" | "B">(initialWeek);
   const [day, setDay] = useState(initialDay);
   const [picker, setPicker] = useState<number | null>(null);
+  const [swapFor, setSwapFor] = useState<{ sec: number; idx: number } | null>(null);
   const [noteFor, setNoteFor] = useState<{ sec: number; idx: number; text: string } | null>(null);
   const [openRow, setOpenRow] = useState<string | null>(null);
 
@@ -420,7 +421,7 @@ function ScheduleEditor({ scope, setScope, initialWeek, initialDay, state, mutat
         }}><G name="edit" size={18} /></button>
       </div>
 
-      <p className="hint">{tr("Kéo chấm ⠿ bên trái để đổi thứ tự · vuốt sang trái để sửa hoặc xoá.", "Drag the ⠿ dots to reorder · swipe left to edit or remove.")}</p>
+      <p className="hint">{tr("Kéo chấm ⠿ bên trái để đổi thứ tự · vuốt sang trái để đổi sản phẩm, sửa hoặc xoá.", "Drag the ⠿ dots to reorder · swipe left to swap, edit or remove.")}</p>
 
       {current.sections.map((sec, secIdx) => {
         const meta = SECTION_META[scope][sec.key] ?? { tone: "am" as const };
@@ -438,6 +439,9 @@ function ScheduleEditor({ scope, setScope, initialWeek, initialDay, state, mutat
                   return (
                     <SwipeRow open={openRow === k} setOpen={(o) => setOpenRow(o ? k : null)}
                       actions={<>
+                        <button className="sw-swap" onClick={() => { haptic(); setOpenRow(null); setSwapFor({ sec: secIdx, idx }); }}>
+                          <G name="swap" size={18} />{tr("Đổi", "Swap")}
+                        </button>
                         <button className="sw-edit" onClick={() => { setOpenRow(null); setNoteFor({ sec: secIdx, idx, text: st.n }); }}>
                           <G name="edit" size={18} />{tr("Sửa", "Edit")}
                         </button>
@@ -484,6 +488,33 @@ function ScheduleEditor({ scope, setScope, initialWeek, initialDay, state, mutat
                 : tr(`Đã thêm ${p.name}`, `Added ${p.name}`)));
             }} />
         )}
+      </Sheet>
+
+      <Sheet open={!!swapFor} onClose={() => setSwapFor(null)} title={tr("Đổi sang sản phẩm khác", "Swap for another product")}>
+        {swapFor && (() => {
+          const sec = current.sections[swapFor.sec];
+          const old = sec?.steps[swapFor.idx];
+          const oldP = old ? byId[old.p] : undefined;
+          if (!sec || !old) return null;
+          return (
+            <>
+              {oldP && <p className="small swap-from">{tr("Đang thay cho", "Replacing")} <b>{oldP.name}</b> · {tr(`bước ${swapFor.idx + 1}`, `step ${swapFor.idx + 1}`)}</p>}
+              <ProductPicker scope={scope} products={state.products} already={sec.steps.map((s) => s.p)} exclude={old.p}
+                initialGroup={oldP && state.products.some((p) => p.id !== oldP.id && p.scope === scope && p.group === oldP.group && p.status !== "empty") ? oldP.group : "all"}
+                onPick={(p) => {
+                  setSwapFor(null);
+                  // giữ ghi chú riêng của bước; nếu ghi chú chỉ là ghi chú mặc định của sản phẩm cũ thì lấy của sản phẩm mới
+                  const n = !old.n || old.n === (oldP?.note ?? "") ? p.note ?? "" : old.n;
+                  const others = sec.steps.filter((_, i) => i !== swapFor.idx).map((st) => byId[st.p]).filter(Boolean);
+                  const clash = clashWith(p, others);
+                  haptic(clash ? "warn" : "medium");
+                  putSection(swapFor.sec, sec.steps.map((st, i) => (i === swapFor.idx ? { p: p.id, n } : st))).then((ok) => ok && toast(clash
+                    ? tr(`Đã đổi sang ${p.name} · ⚠︎ xung đột với ${clash.a.id === p.id ? clash.b.name : clash.a.name}`, `Swapped to ${p.name} · ⚠︎ clashes with ${clash.a.id === p.id ? clash.b.name : clash.a.name}`)
+                    : tr(`Đã đổi sang ${p.name}`, `Swapped to ${p.name}`)));
+                }} />
+            </>
+          );
+        })()}
       </Sheet>
 
       <Sheet open={!!noteFor} onClose={() => setNoteFor(null)} title={tr("Ghi chú cho bước này", "Note for this step")}>
@@ -567,7 +598,7 @@ function DragList<T>({ items, rowKey, onMove, render }: {
 function SwipeRow({ open, setOpen, actions, children }: {
   open: boolean; setOpen: (o: boolean) => void; actions: React.ReactNode; children: React.ReactNode;
 }) {
-  const W = 148;
+  const W = 216;
   const [dx, setDx] = useState<number | null>(null);
   const st = useRef<{ x: number; y: number; base: number; locked: "x" | "y" | null } | null>(null);
   const x = dx ?? (open ? -W : 0);
@@ -599,14 +630,14 @@ function SwipeRow({ open, setOpen, actions, children }: {
 }
 
 /** Chọn sản phẩm để thêm vào lịch: tìm theo tên, lọc theo loại */
-function ProductPicker({ scope, products, already, onPick }: {
-  scope: Scope; products: Product[]; already: string[]; onPick: (p: Product) => void;
+function ProductPicker({ scope, products, already, onPick, exclude, initialGroup = "all" }: {
+  scope: Scope; products: Product[]; already: string[]; onPick: (p: Product) => void; exclude?: string; initialGroup?: string;
 }) {
   const { tr, L, lang } = useI18n();
   const [q, setQ] = useState("");
-  const [group, setGroup] = useState<string>("all");
-  const inSection = products.filter((p) => already.includes(p.id));
-  const mine = products.filter((p) => p.scope === scope && p.status !== "empty");
+  const [group, setGroup] = useState<string>(initialGroup);
+  const inSection = products.filter((p) => already.includes(p.id) && p.id !== exclude);
+  const mine = products.filter((p) => p.scope === scope && p.status !== "empty" && p.id !== exclude);
   const groups = GROUPS[scope].filter((g) => mine.some((p) => p.group === g));
   const list = mine
     .filter((p) => group === "all" || p.group === group)
