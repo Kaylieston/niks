@@ -3,6 +3,48 @@
 Routine chăm sóc da mặt, tóc và cơ thể theo chu kỳ 2 tuần — Next.js (App Router) + Prisma + PostgreSQL,
 cài được lên màn hình chính iPhone, có thống kê thói quen, nhật ký da và cảm xúc, giao diện Tiếng Việt / English.
 
+**Bản đang chạy:** https://niks-eight.vercel.app
+
+## Tính năng
+
+Năm tab ở thanh dưới: **Hôm nay · Lịch trình · Tiến độ · Tủ đồ · Cảm xúc**.
+
+### Giao diện iPhone
+- Thiết kế riêng cho iPhone, icon app mới (mèo ngủ trên trăng), lời chào "Hi Kaylie".
+- Bảng màu: Vanilla Cream `#FFF7E6` (nền), Blush Petal, Rosewood, Sage Leaf, Misty Sky, Midnight Lagoon.
+- Thanh trạng thái iPhone cùng màu kem với nền.
+- Thanh tab kiểu "liquid glass": gọn hơn, tự ẩn khi cuộn xuống và hiện lại khi cuộn lên hoặc tới cuối trang.
+
+### Hôm nay
+- Routine sáng hoặc tối theo giờ hiện tại (số bước, đã xong bao nhiêu), nút **Bắt đầu / Làm tiếp** mở thẳng tab Lịch trình.
+- Check-in cảm xúc nhanh, chuỗi ngày (≥ 80% số bước), sản phẩm sắp hết hạn hoặc danh sách muốn mua.
+- Cài đặt (bánh răng): **Tiếng Việt / English** (lưu trên từng thiết bị) và chu kỳ 2 tuần.
+
+### Lịch trình
+- Routine từng bước theo thứ tự dùng, có hoạt ảnh và minh hoạ "các lớp trên da" chồng lên dần.
+- Thẻ **"Da hôm nay thế nào?"** dưới các bước để check-in tình trạng da (bảng `SkinLog`).
+- Chỉnh lịch (nút ✎): kéo ⠿ để đổi thứ tự, vuốt trái để sửa / xoá, thêm bước bằng ô tìm kiếm + lọc theo loại.
+
+### Tiến độ (nền picnic)
+- Điểm thói quen theo **ngày / tháng / quý**, theo từng mục (mặt, tóc, cơ thể).
+- Sản phẩm dùng nhiều nhất, tình trạng da theo thời gian và chuỗi ngày liên tiếp.
+
+### Tủ đồ
+- Quản lý mọi sản phẩm: tìm kiếm, lọc theo mục và trạng thái (**Đang dùng · Tạm ngưng · Hết · Muốn mua**).
+- Ngày mở nắp + hạn dùng sau khi mở (PAO); danh sách "Muốn mua" ẩn hai ô này.
+- Form thêm sản phẩm chọn trạng thái, mục và loại bằng nút.
+
+### Cảm xúc
+- Ghi cảm xúc mỗi ngày, **biểu đồ tròn** theo 7 ngày / tháng này / từ trước tới nay.
+- Lịch cảm xúc theo tháng, kèm tóm tắt thói quen và tình trạng da.
+
+### Tự cập nhật & offline
+- Mỗi lần mở app (kể cả khi iPhone mở lại app từ nền) đều kiểm tra bản mới; có bản mới thì tự tải lại một lần,
+  không còn kẹt ở bản cũ.
+- Service worker lưu vỏ app để vẫn mở được khi mất mạng.
+
+> Tính năng nhắc nhở / thông báo đẩy đã được bỏ (bảng `PushSubscription` vẫn giữ để không mất dữ liệu).
+
 ## Chạy thử ở máy
 
 ```bash
@@ -37,27 +79,10 @@ Script `scripts/import-legacy.ts` nạp file đó vào database:
 npx tsx scripts/import-legacy.ts ./routine-backup.json
 ```
 
-## Cập nhật giao diện iPhone (11/2026)
+## Cập nhật database
 
-- Thanh tab dưới: **Hôm nay · Lịch trình · Tủ đồ · Cảm xúc**, nút + để thêm nhanh.
-- **Lịch trình**: xem minh hoạ từng bước theo thứ tự dùng, có hoạt ảnh và chồng "các lớp trên da"; nút ✎ để chỉnh lịch.
-- **Tủ đồ**: quản lý mọi sản phẩm (tìm, lọc theo mục / trạng thái, ngày mở nắp + hạn dùng).
-- **Cảm xúc**: ghi cảm xúc mỗi ngày, biểu đồ tròn theo tuần / tháng, lịch cảm xúc, kèm nhật ký da.
-- Icon app mới (mèo ngủ trên trăng).
-
-Bản này thêm bảng `MoodEntry` và hai cột `openedAt`, `paoMonths` cho `Product`. Trên Vercel, script `vercel-build`
-tự chạy `prisma db push` trước khi build nên database được cập nhật khi deploy (chỉ thêm, không mất dữ liệu cũ;
-nếu một thay đổi sau này có thể làm mất dữ liệu, build sẽ dừng lại thay vì tự xoá).
-
-## Cập nhật thói quen & ngôn ngữ (11/2026)
-
-- Bỏ tính năng nhắc nhở / thông báo đẩy (cron, VAPID, `web-push`). Bảng `PushSubscription` vẫn giữ để không mất dữ liệu.
-- Tab mới **Tiến độ** (nền picnic): điểm thói quen theo ngày / tháng / quý, theo từng mục, sản phẩm dùng nhiều nhất,
-  tình trạng da và chuỗi ngày. Tab **Cảm xúc** có thêm tóm tắt thói quen và tình trạng da.
-- **Lịch trình**: thẻ "Da hôm nay thế nào?" dưới các bước (bảng mới `SkinLog`), thay cho nhật ký da thang 1–5 cũ.
-  Chỉnh lịch: kéo ⠿ để đổi thứ tự, vuốt trái để sửa / xoá, thêm bước bằng ô tìm kiếm + lọc theo loại.
-- **Tủ đồ**: form thêm sản phẩm chọn trạng thái, mục và loại bằng nút; "Muốn mua" ẩn ngày mở nắp và hạn dùng.
-- Cài đặt (bánh răng ở Hôm nay): chọn **Tiếng Việt / English** (lưu trên từng thiết bị) và chu kỳ 2 tuần.
+Trên Vercel, script `vercel-build` tự chạy `prisma db push` trước khi build nên các thay đổi schema được áp dụng khi deploy
+(chỉ thêm, không mất dữ liệu cũ; nếu một thay đổi có thể làm mất dữ liệu, build sẽ dừng lại thay vì tự xoá).
 
 ## Cấu trúc
 
